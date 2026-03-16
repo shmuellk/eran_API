@@ -9,6 +9,7 @@ const cartRoute = require("./routers/cartRouts");
 const FavoritsRoute = require("./routers/FavoritsRouts");
 const armorRouts = require("./routers/armorRouts");
 const cronRouter = require("./routers/cronRouter");
+const barRouter = require("./routers/barRouts");
 
 const app = express();
 app.use(cors());
@@ -25,5 +26,6 @@ app.use("/cart", cartRoute);
 app.use("/favorits", FavoritsRoute);
 app.use("/armor", armorRouts);
 app.use("/cron", cronRouter);
+app.use("/bar", barRouter);
 
 module.exports = app;
