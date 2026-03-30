@@ -271,27 +271,28 @@ const getAllAppUsers = async (req, res) => {
   // קבלת פרמטרים מה-query
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
-  const search = req.query.search || ""; // מחרוזת החיפוש
+  const search = req.query.search || "";
+  const createBy = req.query.U_CREATE_BY || "";
   const offset = (page - 1) * limit;
 
   try {
+    const baseWhere = createBy
+      ? "WHERE (U_CARD_NAME LIKE ? OR U_CARD_CODE LIKE ?) AND U_CREATE_BY = ?"
+      : "WHERE (U_CARD_NAME LIKE ? OR U_CARD_CODE LIKE ?)";
+    const baseParams = createBy
+      ? [`%${search}%`, `%${search}%`, createBy]
+      : [`%${search}%`, `%${search}%`];
+
     // שאילתת נתונים עם דפדוף
     const [results] = await pool.query(
-      `
-      SELECT * FROM BENZI_APP_USERS 
-      WHERE U_CARD_NAME LIKE ? OR U_CARD_CODE LIKE ?
-      LIMIT ? OFFSET ?
-    `,
-      [`%${search}%`, `%${search}%`, limit, offset]
+      `SELECT * FROM BENZI_APP_USERS ${baseWhere} ORDER BY U_CREATE_TIME DESC LIMIT ? OFFSET ?`,
+      [...baseParams, limit, offset]
     );
 
     // שאילתת ספירה כללית
     const [[{ total }]] = await pool.query(
-      `
-      SELECT COUNT(*) as total FROM BENZI_APP_USERS
-      WHERE U_CARD_NAME LIKE ? OR U_CARD_CODE LIKE ?
-    `,
-      [`%${search}%`, `%${search}%`]
+      `SELECT COUNT(*) as total FROM BENZI_APP_USERS ${baseWhere}`,
+      baseParams
     );
 
     const [[{ counter }]] = await pool.query(
