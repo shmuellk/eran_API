@@ -13,14 +13,14 @@ router.get("/CountAppUsers", usersController.CountAppUsers);
 router.delete("/deleteUser", usersController.deleteUser);
 router.post("/updateUser", usersController.updateUser);
 router.get("/myIp", (req, res) => {
-  const ips = [
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim(),
+  const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
+  const allIps = [
+    ...(req.headers["x-forwarded-for"] ?? "").split(",").map(s => s.trim()),
     req.headers["x-real-ip"],
     req.headers["cf-connecting-ip"],
     req.ip,
-    req.socket?.remoteAddress,
-  ].filter(Boolean).map((ip) => ip.replace(/^::ffff:/, ""));
-  res.json({ ips });
+  ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
+  res.json({ allIps, firstIPv4: allIps.find(isIPv4) ?? null });
 });
 
 module.exports = router;

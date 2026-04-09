@@ -34,18 +34,19 @@ const logIn = async (req, res) => {
         return res.status(403).json({ status: "blocked" });
       }
       if (allowedIp !== "") {
-        const candidateIps = [
-          req.headers["x-forwarded-for"]?.split(",")[0]?.trim(),
+        const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
+        const allIps = [
+          ...(req.headers["x-forwarded-for"] ?? "").split(",").map(s => s.trim()),
           req.headers["x-real-ip"],
           req.headers["cf-connecting-ip"],
           req.ip,
           req.socket?.remoteAddress,
-        ]
-          .filter(Boolean)
-          .map((ip) => ip.replace(/^::ffff:/, ""));
+        ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
 
-        if (!candidateIps.includes(allowedIp)) {
-          logger.warn("logIn blocked by IP", { userName, candidateIps, allowedIp });
+        const clientIp = allIps.find(isIPv4) ?? "";
+
+        if (!clientIp || clientIp !== allowedIp) {
+          logger.warn("logIn blocked by IP", { userName, clientIp, allowedIp });
           return res.status(403).json({ status: "blocked" });
         }
       }
