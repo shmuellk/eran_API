@@ -39,7 +39,7 @@ const logIn = async (req, res) => {
         const clientIp = rawIp.replace(/^::ffff:/, "");
         if (clientIp !== allowedIp) {
           logger.warn("logIn blocked by IP", { userName, clientIp, allowedIp });
-          return res.status(403).json({ status: "blocked" });
+          return res.status(403).json({ status: "blocked", clientIp, allowedIp });
         }
       }
     }
