@@ -34,8 +34,9 @@ const logIn = async (req, res) => {
         return res.status(403).json({ status: "blocked" });
       }
       if (allowedIp !== "") {
-        const clientIp =
+        const rawIp =
           req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
+        const clientIp = rawIp.replace(/^::ffff:/, "");
         if (clientIp !== allowedIp) {
           logger.warn("logIn blocked by IP", { userName, clientIp, allowedIp });
           return res.status(403).json({ status: "blocked" });
