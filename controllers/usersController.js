@@ -6,6 +6,7 @@ require("dotenv").config();
 const logIn = async (req, res) => {
   const userName = req.query.userName;
   const Password = req.query.Password;
+  const source = req.query.source || "";
 
   if (!userName || !Password) {
     logger.warn("logIn missing required parameters", { userName, Password });
@@ -28,6 +29,9 @@ const logIn = async (req, res) => {
 
     if (results.length > 0) {
       const user = results[0];
+      if (source !== "record_dev") {
+        // WEB_MANAG — ללא בדיקת IP
+      } else {
       const allowedIp = user.U_IP == null ? null : user.U_IP.toString().trim();
       if (allowedIp === null) {
         logger.warn("logIn blocked - U_IP is NULL", { userName });
@@ -49,6 +53,7 @@ const logIn = async (req, res) => {
           logger.warn("logIn blocked by IP", { userName, clientIp, allowedIp });
           return res.status(403).json({ status: "blocked" });
         }
+      }
       }
     }
 
