@@ -26,6 +26,23 @@ const logIn = async (req, res) => {
     const [results] = await pool.query(query, [userName, Password]);
     logger.info("logIn result", { result: results });
 
+    if (results.length > 0) {
+      const user = results[0];
+      const allowedIp = user.U_IP == null ? null : user.U_IP.toString().trim();
+      if (allowedIp === null) {
+        logger.warn("logIn blocked - U_IP is NULL", { userName });
+        return res.status(403).json({ status: "blocked" });
+      }
+      if (allowedIp !== "") {
+        const clientIp =
+          req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
+        if (clientIp !== allowedIp) {
+          logger.warn("logIn blocked by IP", { userName, clientIp, allowedIp });
+          return res.status(403).json({ status: "blocked" });
+        }
+      }
+    }
+
     res.status(200).json({
       status: "success",
       result: results,
@@ -197,6 +214,7 @@ const creatNewUser = async (req, res) => {
   const U_PASSWORD = req.body.U_PASSWORD;
   const U_EILAT_USER = req.body.U_EILAT_USER;
   const U_CREATE_BY = req.body.U_CREATE_BY;
+  const U_IP = req.body.U_IP || "";
 
   console.log("U_CARD_CODE = " + U_CARD_CODE);
   console.log("U_CARD_NAME = " + U_CARD_NAME);
@@ -207,13 +225,14 @@ const creatNewUser = async (req, res) => {
   console.log("U_PASSWORD = " + U_PASSWORD);
   console.log("U_EILAT_USER = " + U_EILAT_USER);
   console.log("U_CREATE_BY = " + U_CREATE_BY);
+  console.log("U_IP = " + U_IP);
 
   try {
     // Using parameterized query to prevent SQL injection
     const query = `
-  INSERT INTO BENZI_APP_USERS 
-    (U_CARD_CODE, U_CARD_NAME, U_VIEW_NAME, U_SHIPTYPE, U_TYPE, U_USER_NAME, U_PASSWORD,U_EILAT_USER,U_CREATE_BY)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO BENZI_APP_USERS
+    (U_CARD_CODE, U_CARD_NAME, U_VIEW_NAME, U_SHIPTYPE, U_TYPE, U_USER_NAME, U_PASSWORD, U_EILAT_USER, U_CREATE_BY, U_IP)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
     const [results] = await pool.query(query, [
       U_CARD_CODE,
@@ -225,6 +244,7 @@ const creatNewUser = async (req, res) => {
       U_PASSWORD,
       U_EILAT_USER,
       U_CREATE_BY,
+      U_IP,
     ]);
     logger.info("creatNewUser result", { result: results });
 
@@ -394,6 +414,7 @@ const updateUser = async (req, res) => {
   const U_USER_NAME = req.body.U_USER_NAME;
   const U_PASSWORD = req.body.U_PASSWORD;
   const U_EILAT_USER = req.body.U_EILAT_USER;
+  const U_IP = req.body.U_IP ?? "";
 
   console.log("U_CARD_CODE = " + U_CARD_CODE);
   console.log("U_CARD_NAME = " + U_CARD_NAME);
@@ -403,17 +424,19 @@ const updateUser = async (req, res) => {
   console.log("U_USER_NAME = " + U_USER_NAME);
   console.log("U_PASSWORD = " + U_PASSWORD);
   console.log("U_EILAT_USER = " + U_EILAT_USER);
+  console.log("U_IP = " + U_IP);
 
   try {
     // Using parameterized query to prevent SQL injection
     const query = `
-  UPDATE BENZI_APP_USERS SET 
-    U_CARD_NAME = ?, 
-    U_VIEW_NAME = ?, 
-    U_SHIPTYPE = ?, 
-    U_TYPE = ?, 
+  UPDATE BENZI_APP_USERS SET
+    U_CARD_NAME = ?,
+    U_VIEW_NAME = ?,
+    U_SHIPTYPE = ?,
+    U_TYPE = ?,
     U_PASSWORD = ?,
-    U_EILAT_USER=?
+    U_EILAT_USER = ?,
+    U_IP = ?
   WHERE U_CARD_CODE = ? AND U_USER_NAME = ?
 `;
 
@@ -424,6 +447,7 @@ const updateUser = async (req, res) => {
       U_TYPE,
       U_PASSWORD,
       U_EILAT_USER,
+      U_IP,
       U_CARD_CODE,
       U_USER_NAME,
     ]);
