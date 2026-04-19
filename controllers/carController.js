@@ -344,6 +344,7 @@ const getProdactsByPARENT_GROUP = async (req, res) => {
       U_TYPE,
     } = req.query;
     const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    console.log("[DEBUG] getProdactsByPARENT_GROUP U_TYPE:", JSON.stringify(U_TYPE), "rowLimit:", rowLimit);
     logger.info("getProdactsByPARENT_GROUP called", {
       MANUFACTURER,
       MODEL,
