@@ -49,6 +49,9 @@ const getCarDataByNumber = async (req, res) => {
 
 const getProdactsByCar = async (req, res) => {
   try {
+    const { U_TYPE } = req.query;
+    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    console.log("[DEBUG] getProdactsByCar U_TYPE:", JSON.stringify(U_TYPE), "rowLimit:", rowLimit);
     const {
       MANUFACTURER,
       MODEL,
@@ -61,7 +64,7 @@ const getProdactsByCar = async (req, res) => {
       PROPULSION,
       NOTE,
       PAGE = 1,
-      LIMIT = 20,
+      LIMIT = rowLimit,
     } = req.query;
 
     logger.info("getProdactsByCar called", {
