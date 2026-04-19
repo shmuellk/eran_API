@@ -29,8 +29,8 @@ const logIn = async (req, res) => {
 
     if (results.length > 0) {
       const user = results[0];
-      if (source !== "record_dev") {
-        // WEB_MANAG — ללא בדיקת IP
+      if (source !== "record_dev" || user.U_TYPE === 'מנהל') {
+        // WEB_MANAG or admin — ללא בדיקת IP
       } else {
       const allowedIp = user.U_IP == null ? null : user.U_IP.toString().trim();
       if (allowedIp === null) {
@@ -162,6 +162,7 @@ const sendEmail = async (req, res) => {
       "Shmuel@recordltd.co.il",
       "Etamar@recordltd.co.il",
       "noam@recordltd.co.il",
+      "benzi@recordltd.co.il",
     ],
     subject: "הזמנה באפליקציה נכשלה",
     html: emailBody, // Use HTML instead of text
@@ -329,10 +330,13 @@ const getAllAppUsers = async (req, res) => {
       baseParams
     );
 
+    const counterWhere = createBy
+      ? "WHERE U_TYPE <> 'מנהל' AND U_CREATE_BY = ?"
+      : "WHERE U_TYPE <> 'מנהל'";
+    const counterParams = createBy ? [createBy] : [];
     const [[{ counter }]] = await pool.query(
-      `SELECT COUNT(DISTINCT U_CARD_CODE) AS counter
-       FROM BENZI_APP_USERS 
-       WHERE U_TYPE <> 'מנהל';`
+      `SELECT COUNT(DISTINCT U_CARD_CODE) AS counter FROM BENZI_APP_USERS ${counterWhere}`,
+      counterParams
     );
 
     logger.info(

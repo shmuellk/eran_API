@@ -341,7 +341,9 @@ const getProdactsByPARENT_GROUP = async (req, res) => {
       PROPULSION,
       NOTE,
       PARENT_GROUP,
+      U_TYPE,
     } = req.query;
+    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
     logger.info("getProdactsByPARENT_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -441,9 +443,9 @@ GROUP BY
     noam.UNTIL_YEAR,
     noam.CAR_NOTE,
     noam.YEAR_LIMIT
-ORDER BY 
+ORDER BY
     noam.CHILD_GROUP
-LIMIT 20;
+LIMIT ${rowLimit};
 `);
     logger.info("getProdactsByPARENT_GROUP result", { result: results });
 
@@ -475,7 +477,9 @@ const getProdactsByITEM_GROUP = async (req, res) => {
       NOTE,
       PARENT_GROUP,
       ITEM_GROUP,
+      U_TYPE,
     } = req.query;
+    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
     logger.info("getProdactsByITEM_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -577,9 +581,9 @@ GROUP BY
     noam.UNTIL_YEAR,
     noam.CAR_NOTE,
     noam.YEAR_LIMIT
-ORDER BY 
+ORDER BY
     noam.CHILD_GROUP
-LIMIT 20;
+LIMIT ${rowLimit};
 `);
     logger.info("getProdactsByITEM_GROUP result", { result: results });
 
@@ -612,7 +616,9 @@ const getProdactsByCHILD_GROUP = async (req, res) => {
       PARENT_GROUP,
       ITEM_GROUP,
       CHILD_GROUP,
+      U_TYPE,
     } = req.query;
+    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
     logger.info("getProdactsByCHILD_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -716,9 +722,9 @@ GROUP BY
     noam.UNTIL_YEAR,
     noam.CAR_NOTE,
     noam.YEAR_LIMIT
-ORDER BY 
+ORDER BY
     noam.CHILD_GROUP
-LIMIT 20;
+LIMIT ${rowLimit};
 `);
     logger.info("getProdactsByCHILD_GROUP result", { result: results });
 
@@ -828,7 +834,9 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
       PROPULSION,
       NOTE,
       CHILD_GROUP,
+      U_TYPE,
     } = req.query;
+    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
     logger.info("getProdactsByCHILD_GROUPSerch called", {
       MANUFACTURER,
       MODEL,
@@ -909,9 +917,9 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
         noam.UNTIL_YEAR,
         noam.CAR_NOTE,
         noam.YEAR_LIMIT
-    ORDER BY 
+    ORDER BY
         noam.CHILD_GROUP
-    LIMIT 20;
+    LIMIT ?;
     `;
     const values = [
       MANUFACTURER,
@@ -944,6 +952,7 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
       CHILD_GROUP,
       CHILD_GROUP,
       CHILD_GROUP,
+      rowLimit,
     ];
 
     const [results] = await pool.query(query, values);
