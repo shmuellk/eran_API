@@ -1,5 +1,22 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
+const axios = require("axios");
+
+const addOrder = async (req, res) => {
+  try {
+    logger.info("addOrder called");
+    const response = await axios.post(
+      "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder",
+      req.body,
+      { headers: { "Content-Type": "application/json" } }
+    );
+    res.status(response.status).json(response.data);
+  } catch (err) {
+    logger.error("addOrder error", { error: err.message });
+    const status = err.response?.status || 500;
+    res.status(status).json({ status: "error", message: err.message });
+  }
+};
 
 const getCartList = async (req, res) => {
   const cardCode = req.query.cardCode;
@@ -132,4 +149,5 @@ module.exports = {
   getCartList,
   addItemToCart,
   deleteItemFromCart,
+  addOrder,
 };

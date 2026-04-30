@@ -283,36 +283,46 @@ const getProdactsById = async (req, res) => {
     logger.info("getProdactsById called", { CATALOG_NUMBER });
 
     const [results] = await pool.query(
-      `SELECT distinct
-        noam.CATALOG_NUMBER,
-        noam.CHILD_GROUP, 
-        noam.DESCRIPTION_NOTE,
-        noam.MODEL, 
-        noam.FROM_YEAR, 
-        noam.UNTIL_YEAR, 
-        noam.CAPACITY, 
-        noam.CAR_NOTE,
-        noam.MANUFACTURER,
-        cards.IMAGE,
-        cards.quantity,
-        cards.brand,
-        cards.sku_code,
-        cards.delivery_date
-      FROM 
-        noam  
-      JOIN 
-        cards ON noam.CATALOG_NUMBER = cards.CATALOG_NUMBER 
-      WHERE
-        cards.site_display = "זמין לגולשים"
-      AND (
-        cards.alternative_skus  LIKE CONCAT("%,", ?, ",%")
-        OR cards.alternative_skus  LIKE CONCAT(?, ",%")
-        OR cards.alternative_skus  LIKE CONCAT("%,", ?)
-        OR cards.alternative_skus  = ?
+      `WITH STEP1 AS (
+        SELECT
+          noam.CATALOG_NUMBER,
+          noam.CHILD_GROUP,
+          noam.DESCRIPTION_NOTE,
+          noam.MODEL,
+          noam.FROM_YEAR,
+          noam.UNTIL_YEAR,
+          noam.CAPACITY,
+          noam.CAR_NOTE,
+          noam.MANUFACTURER,
+          cards.IMAGE,
+          cards.quantity,
+          cards.brand,
+          cards.sku_code,
+          cards.delivery_date,
+          ROW_NUMBER() OVER (
+            PARTITION BY noam.CATALOG_NUMBER
+            ORDER BY cards.quantity DESC
+          ) rn_cat
+        FROM noam
+        JOIN cards ON noam.CATALOG_NUMBER = cards.CATALOG_NUMBER
+        WHERE cards.site_display = "זמין לגולשים"
+        AND (
+          cards.alternative_skus LIKE CONCAT("%,", ?, ",%")
+          OR cards.alternative_skus LIKE CONCAT(?, ",%")
+          OR cards.alternative_skus LIKE CONCAT("%,", ?)
+          OR cards.alternative_skus = ?
+        )
+      ),
+      STEP2 AS (
+        SELECT *,
+          ROW_NUMBER() OVER (
+            PARTITION BY CHILD_GROUP, DESCRIPTION_NOTE
+            ORDER BY quantity DESC
+          ) rn_group
+        FROM STEP1
+        WHERE rn_cat = 1
       )
-      GROUP BY  
-        noam.child_group, 
-        noam.description_note;`,
+      SELECT * FROM STEP2 WHERE rn_group = 1;`,
       [CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER]
     );
     logger.info("getProdactsById result", { result: results });
