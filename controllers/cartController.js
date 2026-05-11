@@ -12,7 +12,11 @@ const addOrder = async (req, res) => {
     );
     res.status(response.status).json(response.data);
   } catch (err) {
-    logger.error("addOrder error", { error: err.message });
+    logger.error("addOrder error", {
+      error: err.message,
+      responseStatus: err.response?.status,
+      responseData: err.response?.data,
+    });
     const status = err.response?.status || 500;
     res.status(status).json({ status: "error", message: err.message });
   }
