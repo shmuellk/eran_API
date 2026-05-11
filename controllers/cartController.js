@@ -4,9 +4,11 @@ const axios = require("axios");
 
 const addOrder = async (req, res) => {
   try {
-    logger.info("addOrder called");
+    logger.info("addOrder called", { body: req.body });
+    const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder";
+    logger.info("addOrder sending to SAP", { url: sapUrl, body: req.body });
     const response = await axios.post(
-      "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder",
+      sapUrl,
       req.body,
       { headers: { "Content-Type": "application/json" } }
     );
