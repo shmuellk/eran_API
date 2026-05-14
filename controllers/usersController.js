@@ -219,17 +219,23 @@ const getUserExistStatus = async (req, res) => {
   }
 };
 
+const toNullIfEmpty = (val) => {
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  return str === "" ? null : str;
+};
+
 const creatNewUser = async (req, res) => {
-  const U_CARD_CODE = req.body.U_CARD_CODE;
-  const U_CARD_NAME = req.body.U_CARD_NAME;
-  const U_VIEW_NAME = req.body.U_VIEW_NAME;
-  const U_SHIPTYPE = req.body.U_SHIPTYPE ? req.body.U_SHIPTYPE : "";
-  const U_TYPE = req.body.U_TYPE;
-  const U_USER_NAME = req.body.U_USER_NAME;
-  const U_PASSWORD = req.body.U_PASSWORD;
-  const U_EILAT_USER = req.body.U_EILAT_USER;
-  const U_CREATE_BY = req.body.U_CREATE_BY;
-  const U_IP = req.body.U_IP || "";
+  const U_CARD_CODE = toNullIfEmpty(req.body.U_CARD_CODE);
+  const U_CARD_NAME = toNullIfEmpty(req.body.U_CARD_NAME);
+  const U_VIEW_NAME = toNullIfEmpty(req.body.U_VIEW_NAME);
+  const U_SHIPTYPE = toNullIfEmpty(req.body.U_SHIPTYPE);
+  const U_TYPE = toNullIfEmpty(req.body.U_TYPE);
+  const U_USER_NAME = toNullIfEmpty(req.body.U_USER_NAME);
+  const U_PASSWORD = toNullIfEmpty(req.body.U_PASSWORD);
+  const U_EILAT_USER = req.body.U_EILAT_USER ?? "0";
+  const U_CREATE_BY = toNullIfEmpty(req.body.U_CREATE_BY);
+  const U_IP = toNullIfEmpty(req.body.U_IP);
 
   console.log("U_CARD_CODE = " + U_CARD_CODE);
   console.log("U_CARD_NAME = " + U_CARD_NAME);

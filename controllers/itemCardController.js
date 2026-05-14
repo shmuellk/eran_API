@@ -34,12 +34,13 @@ const getItemBrand = async (req, res) => {
         cards.quantity,
         cards.size,
         cards.teeth,
+        cards.length,
         cards.delivery_date
       FROM noam
       JOIN cards ON noam.catalog_number = cards.catalog_number
-      WHERE 
+      WHERE
         (
-          FIND_IN_SET(?, REPLACE(cards.alternative_skus, ',', ',')) 
+          FIND_IN_SET(?, REPLACE(cards.alternative_skus, ',', ','))
           OR cards.catalog_number = ?
         )
         AND noam.child_group = ?
@@ -187,6 +188,7 @@ const getItemBrandByCar = async (req, res) => {
           cards.quantity,  
           cards.size,
           cards.teeth,
+          cards.length,
           cards.sku_code,
           cards.delivery_date
       FROM noam

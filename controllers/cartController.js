@@ -2,9 +2,50 @@ const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
 const axios = require("axios");
 
+const checkVehicleNumberRequired = async (req, res) => {
+  const { cardCode, userName } = req.query;
+  if (!cardCode || !userName) {
+    return res.status(400).json({ status: "error", message: "Missing cardCode or userName" });
+  }
+  try {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM NOAM N
+       INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
+       WHERE N.car_NOTE = 'לפי מספר רישוי בלבד'
+         AND C.CARD_CODE = ?
+         AND C.USER_NAME = ?`,
+      [cardCode, userName]
+    );
+    res.status(200).json({ required: rows[0].cnt > 0 });
+  } catch (err) {
+    logger.error("checkVehicleNumberRequired error", { error: err.message });
+    res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
 const addOrder = async (req, res) => {
   try {
     logger.info("addOrder called", { body: req.body });
+
+    // Validate vehicle number if any cart item requires it
+    const cardCode = req.body.Orders?.[0]?.CardCode;
+    const userName = req.body.Orders?.[0]?.U_User_Name;
+    if (cardCode && userName) {
+      const [rows] = await pool.query(
+        `SELECT COUNT(*) AS cnt
+         FROM NOAM N
+         INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
+         WHERE N.car_NOTE = 'לפי מספר רישוי בלבד'
+           AND C.CARD_CODE = ?
+           AND C.USER_NAME = ?`,
+        [cardCode, userName]
+      );
+      if (rows[0].cnt > 0 && !req.body.Orders?.[0]?.VehicleNumber) {
+        return res.status(400).json({ status: "error", message: "נדרש מספר רכב" });
+      }
+    }
+
     const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder";
     logger.info("addOrder sending to SAP", { url: sapUrl, body: req.body });
     const response = await axios.post(
@@ -151,9 +192,32 @@ const deleteItemFromCart = async (req, res) => {
   }
 };
 
+const activateCart = async (req, res) => {
+  try {
+    logger.info("activateCart called");
+    const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/ActivateWagon";
+    const response = await axios.post(sapUrl, req.body || {}, {
+      headers: { "Content-Type": "application/json" },
+      timeout: 15000,
+    });
+    logger.info("activateCart success", { status: response.status });
+    res.status(response.status).json(response.data);
+  } catch (err) {
+    logger.error("activateCart error", {
+      error: err.message,
+      responseStatus: err.response?.status,
+      responseData: err.response?.data,
+    });
+    const status = err.response?.status || 500;
+    res.status(status).json({ status: "error", message: err.message });
+  }
+};
+
 module.exports = {
   getCartList,
   addItemToCart,
   deleteItemFromCart,
   addOrder,
+  checkVehicleNumberRequired,
+  activateCart,
 };
