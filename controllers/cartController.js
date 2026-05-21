@@ -9,15 +9,20 @@ const checkVehicleNumberRequired = async (req, res) => {
   }
   try {
     const [rows] = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM NOAM N
-       INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
-       WHERE N.car_NOTE = 'לפי מספר רישוי בלבד'
-         AND C.CARD_CODE = ?
-         AND C.USER_NAME = ?`,
+      `SELECT
+         CASE
+           WHEN EXISTS (
+             SELECT 1
+             FROM noam N
+             INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
+             WHERE C.CARD_CODE = ? AND C.USER_NAME = ?
+               AND N.CAR_NOTE = 'לפי מספר רישוי בלבד'
+           )
+           THEN 'YES' ELSE 'NO'
+         END AS Result`,
       [cardCode, userName]
     );
-    res.status(200).json({ required: rows[0].cnt > 0 });
+    res.status(200).json({ required: rows[0].Result === 'YES' });
   } catch (err) {
     logger.error("checkVehicleNumberRequired error", { error: err.message });
     res.status(500).json({ status: "error", message: err.message });
@@ -33,15 +38,20 @@ const addOrder = async (req, res) => {
     const userName = req.body.Orders?.[0]?.U_User_Name;
     if (cardCode && userName) {
       const [rows] = await pool.query(
-        `SELECT COUNT(*) AS cnt
-         FROM NOAM N
-         INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
-         WHERE N.car_NOTE = 'לפי מספר רישוי בלבד'
-           AND C.CARD_CODE = ?
-           AND C.USER_NAME = ?`,
+        `SELECT
+           CASE
+             WHEN EXISTS (
+               SELECT 1
+               FROM noam N
+               INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
+               WHERE C.CARD_CODE = ? AND C.USER_NAME = ?
+                 AND N.CAR_NOTE = 'לפי מספר רישוי בלבד'
+             )
+             THEN 'YES' ELSE 'NO'
+           END AS Result`,
         [cardCode, userName]
       );
-      if (rows[0].cnt > 0 && !req.body.Orders?.[0]?.VehicleNumber) {
+      if (rows[0].Result === 'YES' && !req.body.Orders?.[0]?.VehicleNumber) {
         return res.status(400).json({ status: "error", message: "נדרש מספר רכב" });
       }
     }
