@@ -33,29 +33,6 @@ const addOrder = async (req, res) => {
   try {
     logger.info("addOrder called", { body: req.body });
 
-    // Validate vehicle number if any cart item requires it
-    const cardCode = req.body.Orders?.[0]?.CardCode;
-    const userName = req.body.Orders?.[0]?.U_User_Name;
-    if (cardCode && userName) {
-      const [rows] = await pool.query(
-        `SELECT
-           CASE
-             WHEN EXISTS (
-               SELECT 1
-               FROM noam N
-               INNER JOIN BENZI_APP_USERS_CART C ON C.ITEMCODE = N.CATALOG_NUMBER
-               WHERE C.CARD_CODE = ? AND C.USER_NAME = ?
-                 AND N.CAR_NOTE = 'לפי מספר רישוי בלבד'
-             )
-             THEN 'YES' ELSE 'NO'
-           END AS Result`,
-        [cardCode, userName]
-      );
-      if (rows[0].Result === 'YES' && !req.body.Orders?.[0]?.VehicleNumber) {
-        return res.status(400).json({ status: "error", message: "נדרש מספר רכב" });
-      }
-    }
-
     const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder";
     logger.info("addOrder sending to SAP", { url: sapUrl, body: req.body });
     const response = await axios.post(
