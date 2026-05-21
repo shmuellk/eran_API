@@ -436,19 +436,20 @@ const updateUser = async (req, res) => {
   const U_SHIPTYPE = req.body.U_SHIPTYPE ? req.body.U_SHIPTYPE : "";
   const U_TYPE = req.body.U_TYPE;
   const U_USER_NAME = req.body.U_USER_NAME;
+  const U_USER_NAME_ORIGINAL = req.body.U_USER_NAME_ORIGINAL || U_USER_NAME;
   const U_PASSWORD = req.body.U_PASSWORD;
   const U_EILAT_USER = req.body.U_EILAT_USER;
   const U_IP = req.body.U_IP ?? "";
 
-  console.log("U_CARD_CODE = " + U_CARD_CODE);
-  console.log("U_CARD_NAME = " + U_CARD_NAME);
-  console.log("U_VIEW_NAME = " + U_VIEW_NAME);
-  console.log("U_SHIPTYPE = " + U_SHIPTYPE);
-  console.log("U_TYPE = " + U_TYPE);
-  console.log("U_USER_NAME = " + U_USER_NAME);
-  console.log("U_PASSWORD = " + U_PASSWORD);
-  console.log("U_EILAT_USER = " + U_EILAT_USER);
-  console.log("U_IP = " + U_IP);
+  console.log("[updateUser] U_CARD_CODE =", U_CARD_CODE);
+  console.log("[updateUser] U_CARD_NAME =", U_CARD_NAME);
+  console.log("[updateUser] U_USER_NAME_ORIGINAL =", U_USER_NAME_ORIGINAL);
+  console.log("[updateUser] U_USER_NAME (new) =", U_USER_NAME);
+  console.log("[updateUser] U_PASSWORD =", U_PASSWORD);
+  console.log("[updateUser] U_SHIPTYPE =", U_SHIPTYPE);
+  console.log("[updateUser] U_TYPE =", U_TYPE);
+  console.log("[updateUser] U_EILAT_USER =", U_EILAT_USER);
+  console.log("[updateUser] U_IP =", U_IP);
 
   try {
     // Using parameterized query to prevent SQL injection
@@ -458,6 +459,7 @@ const updateUser = async (req, res) => {
     U_VIEW_NAME = ?,
     U_SHIPTYPE = ?,
     U_TYPE = ?,
+    U_USER_NAME = ?,
     U_PASSWORD = ?,
     U_EILAT_USER = ?,
     U_IP = ?
@@ -469,13 +471,15 @@ const updateUser = async (req, res) => {
       U_VIEW_NAME,
       U_SHIPTYPE,
       U_TYPE,
+      U_USER_NAME,
       U_PASSWORD,
       U_EILAT_USER,
       U_IP,
       U_CARD_CODE,
-      U_USER_NAME,
+      U_USER_NAME_ORIGINAL,
     ]);
-    logger.info("updateUser result", { result: results });
+    console.log("[updateUser] affectedRows =", results.affectedRows, "changedRows =", results.changedRows);
+    logger.info("updateUser result", { affectedRows: results.affectedRows, changedRows: results.changedRows });
 
     res.status(200).json({
       status: "success",
