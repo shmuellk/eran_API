@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
+const axios = require("axios");
 
 // פונקציה לעדכון נתונים (נקראת דרך API)
 const updatePaginated = async (req, res) => {
@@ -99,6 +100,23 @@ const updatePaginated = async (req, res) => {
   }
 };
 
+const triggerCron = async (req, res) => {
+  try {
+    logger.info("triggerCron called");
+    const response = await axios.get(
+      "http://app.record.a-zuzit.co.il:8085/cron/sendPaginatedUpdates",
+      { timeout: 300000 }
+    );
+    logger.info("triggerCron success", { data: response.data });
+    res.status(200).json({ status: "ok", message: "הקרון הופעל בהצלחה", detail: response.data });
+  } catch (err) {
+    const detail = err.response?.data || err.message;
+    logger.error("triggerCron error", { error: detail });
+    res.status(err.response?.status || 500).json({ status: "error", message: String(detail) });
+  }
+};
+
 module.exports = {
   updatePaginated,
+  triggerCron,
 };

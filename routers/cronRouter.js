@@ -3,5 +3,6 @@ const router = express.Router();
 const cronController = require("../controllers/cronController");
 
 router.post("/updatePaginated", cronController.updatePaginated);
+router.get("/triggerCron", cronController.triggerCron);
 
 module.exports = router;
