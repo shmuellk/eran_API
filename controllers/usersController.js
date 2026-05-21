@@ -481,6 +481,13 @@ const updateUser = async (req, res) => {
     console.log("[updateUser] affectedRows =", results.affectedRows, "changedRows =", results.changedRows);
     logger.info("updateUser result", { affectedRows: results.affectedRows, changedRows: results.changedRows });
 
+    if (results.affectedRows === 0) {
+      return res.status(404).json({
+        status: "error",
+        message: `לא נמצא משתמש עם קוד ${U_CARD_CODE} ושם משתמש ${U_USER_NAME_ORIGINAL}`,
+      });
+    }
+
     res.status(200).json({
       status: "success",
       result: results,

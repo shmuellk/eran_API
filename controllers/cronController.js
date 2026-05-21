@@ -1,7 +1,10 @@
-const cron = require("node-cron");
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
 const axios = require("axios");
+const https = require("https");
+
+// agent המאפשר אישור SSL עצמי — לשימוש פנימי בלבד בין שרתים
+const internalHttpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // פונקציה לעדכון נתונים (נקראת דרך API)
 const updatePaginated = async (req, res) => {
@@ -102,17 +105,32 @@ const updatePaginated = async (req, res) => {
 
 const triggerCron = async (req, res) => {
   try {
-    logger.info("triggerCron called");
+    logger.info("triggerCron called — sending to My_SQL_Server");
     const response = await axios.get(
-      "http://app.record.a-zuzit.co.il:8085/cron/sendPaginatedUpdates",
-      { timeout: 300000 }
+      "https://app.record.a-zuzit.co.il/cron/sendPaginatedUpdates",
+      { httpsAgent: internalHttpsAgent, timeout: 300000 }
     );
     logger.info("triggerCron success", { data: response.data });
     res.status(200).json({ status: "ok", message: "הקרון הופעל בהצלחה", detail: response.data });
   } catch (err) {
-    const detail = err.response?.data || err.message;
-    logger.error("triggerCron error", { error: detail });
-    res.status(err.response?.status || 500).json({ status: "error", message: String(detail) });
+    const responseData = err.response?.data;
+    const detail =
+      typeof responseData === "string"
+        ? responseData
+        : responseData
+        ? JSON.stringify(responseData)
+        : err.message;
+
+    logger.error("triggerCron error", {
+      message: err.message,
+      responseStatus: err.response?.status,
+      responseData,
+    });
+
+    res.status(err.response?.status || 500).json({
+      status: "error",
+      message: detail,
+    });
   }
 };
 

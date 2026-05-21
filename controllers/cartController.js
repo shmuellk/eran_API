@@ -192,32 +192,10 @@ const deleteItemFromCart = async (req, res) => {
   }
 };
 
-const activateCart = async (req, res) => {
-  try {
-    logger.info("activateCart called");
-    const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/ActivateWagon";
-    const response = await axios.post(sapUrl, req.body || {}, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 15000,
-    });
-    logger.info("activateCart success", { status: response.status });
-    res.status(response.status).json(response.data);
-  } catch (err) {
-    logger.error("activateCart error", {
-      error: err.message,
-      responseStatus: err.response?.status,
-      responseData: err.response?.data,
-    });
-    const status = err.response?.status || 500;
-    res.status(status).json({ status: "error", message: err.message });
-  }
-};
-
 module.exports = {
   getCartList,
   addItemToCart,
   deleteItemFromCart,
   addOrder,
   checkVehicleNumberRequired,
-  activateCart,
 };
