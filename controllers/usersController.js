@@ -32,25 +32,39 @@ const logIn = async (req, res) => {
       if (source !== "record_dev" || user.U_TYPE === 'מנהל') {
         // WEB_MANAG or admin — ללא בדיקת IP
       } else {
-      const allowedIp = user.U_IP == null ? null : user.U_IP.toString().trim();
-      if (allowedIp === null) {
-        logger.warn("logIn blocked - U_IP is NULL", { userName });
+      const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
+      const getIPv6Prefix64 = (ip) => {
+        if (!ip || !ip.includes(':') || ip.startsWith('::ffff:')) return '';
+        return ip.split(':').slice(0, 4).join(':').toLowerCase();
+      };
+      const allIps = [
+        ...(req.headers["x-forwarded-for"] ?? "").split(",").map(s => s.trim()),
+        req.headers["x-real-ip"],
+        req.headers["cf-connecting-ip"],
+        req.ip,
+        req.socket?.remoteAddress,
+      ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
+
+      const clientIPv4 = allIps.find(isIPv4) ?? null;
+      const clientIPv6Raw = allIps.find(ip => !isIPv4(ip) && ip.includes(':')) ?? null;
+      const clientIPv6Prefix = getIPv6Prefix64(clientIPv6Raw);
+
+      const allowedIp  = user.U_IP  == null ? null : user.U_IP.toString().trim();
+      const allowedIp6 = user.U_IP6 == null ? null : user.U_IP6.toString().trim().toLowerCase();
+
+      if (allowedIp === null && allowedIp6 === null) {
+        logger.warn("logIn blocked - no IP configured", { userName });
         return res.status(403).json({ status: "blocked" });
       }
-      if (allowedIp !== "") {
-        const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
-        const allIps = [
-          ...(req.headers["x-forwarded-for"] ?? "").split(",").map(s => s.trim()),
-          req.headers["x-real-ip"],
-          req.headers["cf-connecting-ip"],
-          req.ip,
-          req.socket?.remoteAddress,
-        ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
 
-        const clientIp = allIps.find(isIPv4) ?? "";
+      const hasIPv4Restriction = allowedIp && allowedIp !== "";
+      const hasIPv6Restriction = allowedIp6 && allowedIp6 !== "";
 
-        if (!clientIp || clientIp !== allowedIp) {
-          logger.warn("logIn blocked by IP", { userName, clientIp, allowedIp });
+      if (hasIPv4Restriction || hasIPv6Restriction) {
+        const ipv4Match = hasIPv4Restriction && clientIPv4 === allowedIp;
+        const ipv6Match = hasIPv6Restriction && clientIPv6Prefix !== '' && clientIPv6Prefix === allowedIp6;
+        if (!ipv4Match && !ipv6Match) {
+          logger.warn("logIn blocked by IP", { userName, clientIPv4, clientIPv6Prefix, allowedIp, allowedIp6 });
           return res.status(403).json({ status: "blocked" });
         }
       }
@@ -163,6 +177,7 @@ const sendEmail = async (req, res) => {
       "Etamar@recordltd.co.il",
       "noam@recordltd.co.il",
       "benzi@recordltd.co.il",
+      "hezi@recordltd.co.il",
     ],
     subject: "הזמנה באפליקציה נכשלה",
     html: emailBody, // Use HTML instead of text
@@ -236,6 +251,7 @@ const creatNewUser = async (req, res) => {
   const U_EILAT_USER = req.body.U_EILAT_USER ?? "0";
   const U_CREATE_BY = toNullIfEmpty(req.body.U_CREATE_BY);
   const U_IP = toNullIfEmpty(req.body.U_IP);
+  const U_IP6 = toNullIfEmpty(req.body.U_IP6);
   const SITE = req.body.SITE ? 1 : 0;
   const APP = req.body.APP ? 1 : 0;
 
@@ -249,13 +265,14 @@ const creatNewUser = async (req, res) => {
   console.log("U_EILAT_USER = " + U_EILAT_USER);
   console.log("U_CREATE_BY = " + U_CREATE_BY);
   console.log("U_IP = " + U_IP);
+  console.log("U_IP6 = " + U_IP6);
 
   try {
     // Using parameterized query to prevent SQL injection
     const query = `
   INSERT INTO BENZI_APP_USERS
-    (U_CARD_CODE, U_CARD_NAME, U_VIEW_NAME, U_SHIPTYPE, U_TYPE, U_USER_NAME, U_PASSWORD, U_EILAT_USER, U_CREATE_BY, U_IP, SITE, APP)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (U_CARD_CODE, U_CARD_NAME, U_VIEW_NAME, U_SHIPTYPE, U_TYPE, U_USER_NAME, U_PASSWORD, U_EILAT_USER, U_CREATE_BY, U_IP, U_IP6, SITE, APP)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
     const [results] = await pool.query(query, [
       U_CARD_CODE,
@@ -268,6 +285,7 @@ const creatNewUser = async (req, res) => {
       U_EILAT_USER,
       U_CREATE_BY,
       U_IP,
+      U_IP6,
       SITE,
       APP,
     ]);
@@ -444,6 +462,7 @@ const updateUser = async (req, res) => {
   const U_PASSWORD = req.body.U_PASSWORD;
   const U_EILAT_USER = req.body.U_EILAT_USER;
   const U_IP = req.body.U_IP ?? "";
+  const U_IP6 = req.body.U_IP6 ?? "";
   const SITE = req.body.SITE ? 1 : 0;
   const APP = req.body.APP ? 1 : 0;
 
@@ -456,6 +475,7 @@ const updateUser = async (req, res) => {
   console.log("[updateUser] U_TYPE =", U_TYPE);
   console.log("[updateUser] U_EILAT_USER =", U_EILAT_USER);
   console.log("[updateUser] U_IP =", U_IP);
+  console.log("[updateUser] U_IP6 =", U_IP6);
 
   try {
     // Using parameterized query to prevent SQL injection
@@ -469,6 +489,7 @@ const updateUser = async (req, res) => {
     U_PASSWORD = ?,
     U_EILAT_USER = ?,
     U_IP = ?,
+    U_IP6 = ?,
     SITE = ?,
     APP = ?
   WHERE U_CARD_CODE = ? AND U_USER_NAME = ?
@@ -483,6 +504,7 @@ const updateUser = async (req, res) => {
       U_PASSWORD,
       U_EILAT_USER,
       U_IP,
+      U_IP6,
       SITE,
       APP,
       U_CARD_CODE,

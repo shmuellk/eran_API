@@ -126,24 +126,23 @@ const getArmorsInStock = async (req, res) => {
     logger.info("getArmorsInStock called", { cardCode, userName });
     const [results] = await pool.query(
       `
-      SELECT 1
+      SELECT COUNT(*) AS cnt
       FROM BENZI_APP_USERS_WISHLIST
-      LEFT JOIN cards 
+      LEFT JOIN cards
         ON BENZI_APP_USERS_WISHLIST.ITEMCODE = cards.catalog_number
-      WHERE 
+      WHERE
         cards.QUANTITY > 0
         AND BENZI_APP_USERS_WISHLIST.CARD_CODE = ?
         AND BENZI_APP_USERS_WISHLIST.USER_NAME = ?
-      LIMIT 1;
       `,
       [cardCode, userName]
     );
 
-    const hasStock = results.length > 0;
-    logger.info("getArmorsInStock result", { inStock: hasStock });
+    const count = results[0]?.cnt || 0;
+    logger.info("getArmorsInStock result", { inStock: count });
     res.status(200).json({
       status: "success",
-      inStock: hasStock,
+      inStock: count,
     });
   } catch (err) {
     logger.error("getArmorsInStock Database error", { error: err });
