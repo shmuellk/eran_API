@@ -92,7 +92,7 @@ const getProdactsByCar = async (req, res) => {
 
     const offset = (parseInt(PAGE) - 1) * parseInt(LIMIT);
     const query = `
-      SELECT 
+      SELECT
         noam.MANUFACTURER,
         noam.MODEL,
         noam.PARENT_GROUP,
@@ -104,13 +104,14 @@ const getProdactsByCar = async (req, res) => {
         noam.CAPACITY,
         noam.CAR_NOTE,
         noam.YEAR_LIMIT,
+        noam.catalog_number,
         cards.IMAGE,
         cards.sku_code,
         cards.delivery_date
       FROM noam
-      JOIN cards 
+      JOIN cards
         ON noam.catalog_number = cards.catalog_number
-      WHERE 
+      WHERE
         noam.manufacturer = ?
         AND (? = '' OR noam.model = ?)
         AND (? = '' OR FIND_IN_SET(?, noam.manufacture_years) OR noam.manufacture_years = '')
@@ -373,7 +374,7 @@ const getProdactsByPARENT_GROUP = async (req, res) => {
     });
 
     const [results] = await pool.query(`
-SELECT 
+SELECT
     noam.MANUFACTURER,
     noam.MODEL,
     noam.PARENT_GROUP,
@@ -385,26 +386,27 @@ SELECT
     noam.CAPACITY,
     noam.CAR_NOTE,
     noam.YEAR_LIMIT,
+    noam.catalog_number,
     cards.IMAGE,
     cards.sku_code,
     cards.delivery_date
 FROM noam
-JOIN cards 
+JOIN cards
     ON noam.catalog_number = cards.catalog_number
-WHERE 
+WHERE
     noam.manufacturer = "${MANUFACTURER}"
     AND (
-        "${MODEL}" = "" 
+        "${MODEL}" = ""
         OR noam.model = "${MODEL}"
     )
     AND (
-        "${MANUFACTURE_YEAR}" = "" 
+        "${MANUFACTURE_YEAR}" = ""
         OR CONCAT(',', noam.manufacture_years, ',')
            LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
         OR noam.manufacture_years = ""
     )
     AND (
-       "${ENGINE_MODEL}" = "" 
+       "${ENGINE_MODEL}" = ""
         OR noam.engine_model = "${ENGINE_MODEL}"
         OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
         OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
@@ -412,27 +414,27 @@ WHERE
         OR noam.engine_model = ""
     )
     AND (
-        "${GEAR}" = "" 
+        "${GEAR}" = ""
         OR noam.gear = "${GEAR}"
         OR noam.gear = ""
     )
     AND (
-        "${PROPULSION}" = "" 
+        "${PROPULSION}" = ""
         OR noam.propulsion = "${PROPULSION}"
         OR noam.propulsion = ""
     )
     AND (
-        "${DOORS}" = "" 
+        "${DOORS}" = ""
         OR noam.doors = "${DOORS}"
         OR noam.doors = ""
     )
     AND (
-        "${BODY}" = "" 
+        "${BODY}" = ""
         OR noam.body = "${BODY}"
         OR noam.body = ""
     )
     AND (
-       "${YEAR_LIMIT}" = "" 
+       "${YEAR_LIMIT}" = ""
         OR noam.year_limit = "${YEAR_LIMIT}"
         OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
         OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
@@ -440,7 +442,7 @@ WHERE
         OR noam.year_limit = ""
     )
     AND (
-        "${NOTE}" = "" 
+        "${NOTE}" = ""
         OR noam.car_note = "${NOTE}"
         OR noam.car_note = ""
     )
@@ -510,7 +512,7 @@ const getProdactsByITEM_GROUP = async (req, res) => {
     });
 
     const [results] = await pool.query(`
-SELECT 
+SELECT
     noam.MANUFACTURER,
     noam.MODEL,
     noam.PARENT_GROUP,
@@ -522,26 +524,27 @@ SELECT
     noam.CAPACITY,
     noam.CAR_NOTE,
     noam.YEAR_LIMIT,
+    noam.catalog_number,
     cards.IMAGE,
     cards.sku_code,
     cards.delivery_date
 FROM noam
-JOIN cards 
+JOIN cards
     ON noam.catalog_number = cards.catalog_number
-WHERE 
+WHERE
     noam.manufacturer = "${MANUFACTURER}"
     AND (
-        "${MODEL}" = "" 
+        "${MODEL}" = ""
         OR noam.model = "${MODEL}"
     )
     AND (
-        "${MANUFACTURE_YEAR}" = "" 
+        "${MANUFACTURE_YEAR}" = ""
         OR CONCAT(',', noam.manufacture_years, ',')
            LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
         OR noam.manufacture_years = ""
     )
     AND (
-       "${ENGINE_MODEL}" = "" 
+       "${ENGINE_MODEL}" = ""
         OR noam.engine_model = "${ENGINE_MODEL}"
         OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
         OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
@@ -549,27 +552,27 @@ WHERE
         OR noam.engine_model = ""
     )
     AND (
-        "${GEAR}" = "" 
+        "${GEAR}" = ""
         OR noam.gear = "${GEAR}"
         OR noam.gear = ""
     )
     AND (
-        "${PROPULSION}" = "" 
+        "${PROPULSION}" = ""
         OR noam.propulsion = "${PROPULSION}"
         OR noam.propulsion = ""
     )
     AND (
-        "${DOORS}" = "" 
+        "${DOORS}" = ""
         OR noam.doors = "${DOORS}"
         OR noam.doors = ""
     )
     AND (
-        "${BODY}" = "" 
+        "${BODY}" = ""
         OR noam.body = "${BODY}"
         OR noam.body = ""
     )
     AND (
-       "${YEAR_LIMIT}" = "" 
+       "${YEAR_LIMIT}" = ""
         OR noam.year_limit = "${YEAR_LIMIT}"
         OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
         OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
@@ -577,7 +580,7 @@ WHERE
         OR noam.year_limit = ""
     )
     AND (
-        "${NOTE}" = "" 
+        "${NOTE}" = ""
         OR noam.car_note = "${NOTE}"
         OR noam.car_note = ""
     )
@@ -650,7 +653,7 @@ const getProdactsByCHILD_GROUP = async (req, res) => {
     });
 
     const [results] = await pool.query(`
-SELECT 
+SELECT
     noam.MANUFACTURER,
     noam.MODEL,
     noam.PARENT_GROUP,
@@ -662,26 +665,27 @@ SELECT
     noam.CAPACITY,
     noam.CAR_NOTE,
     noam.YEAR_LIMIT,
+    noam.catalog_number,
     cards.IMAGE,
     cards.sku_code,
     cards.delivery_date
 FROM noam
-JOIN cards 
+JOIN cards
     ON noam.catalog_number = cards.catalog_number
-WHERE 
+WHERE
     noam.manufacturer = "${MANUFACTURER}"
     AND (
-        "${MODEL}" = "" 
+        "${MODEL}" = ""
         OR noam.model = "${MODEL}"
     )
     AND (
-        "${MANUFACTURE_YEAR}" = "" 
+        "${MANUFACTURE_YEAR}" = ""
         OR CONCAT(',', noam.manufacture_years, ',')
            LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
         OR noam.manufacture_years = ""
     )
     AND (
-       "${ENGINE_MODEL}" = "" 
+       "${ENGINE_MODEL}" = ""
         OR noam.engine_model = "${ENGINE_MODEL}"
         OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
         OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
@@ -689,27 +693,27 @@ WHERE
         OR noam.engine_model = ""
     )
     AND (
-        "${GEAR}" = "" 
+        "${GEAR}" = ""
         OR noam.gear = "${GEAR}"
         OR noam.gear = ""
     )
     AND (
-        "${PROPULSION}" = "" 
+        "${PROPULSION}" = ""
         OR noam.propulsion = "${PROPULSION}"
         OR noam.propulsion = ""
     )
     AND (
-        "${DOORS}" = "" 
+        "${DOORS}" = ""
         OR noam.doors = "${DOORS}"
         OR noam.doors = ""
     )
     AND (
-        "${BODY}" = "" 
+        "${BODY}" = ""
         OR noam.body = "${BODY}"
         OR noam.body = ""
     )
     AND (
-       "${YEAR_LIMIT}" = "" 
+       "${YEAR_LIMIT}" = ""
         OR noam.year_limit = "${YEAR_LIMIT}"
         OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
         OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
@@ -717,7 +721,7 @@ WHERE
         OR noam.year_limit = ""
     )
     AND (
-        "${NOTE}" = "" 
+        "${NOTE}" = ""
         OR noam.car_note = "${NOTE}"
         OR noam.car_note = ""
     )
@@ -866,7 +870,7 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
     });
 
     const query = `
-    SELECT 
+    SELECT
         noam.MANUFACTURER,
         noam.MODEL,
         noam.PARENT_GROUP,
@@ -878,11 +882,12 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
         noam.CAPACITY,
         noam.CAR_NOTE,
         noam.YEAR_LIMIT,
+        noam.catalog_number,
         cards.IMAGE,
         cards.sku_code,
         cards.delivery_date
     FROM noam
-    JOIN cards 
+    JOIN cards
         ON noam.catalog_number = cards.catalog_number
     WHERE 
         noam.manufacturer = ?
