@@ -31,10 +31,10 @@ const checkVehicleNumberRequired = async (req, res) => {
 
 const addOrder = async (req, res) => {
   try {
-    logger.info("addOrder called", { body: req.body });
+    console.log("addOrder called", { body: req.body });
 
     const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder";
-    logger.info("addOrder sending to SAP", { url: sapUrl, body: req.body });
+    console.log("addOrder sending to SAP", { url: sapUrl, body: req.body });
     const response = await axios.post(
       sapUrl,
       req.body,
@@ -42,7 +42,7 @@ const addOrder = async (req, res) => {
     );
     res.status(response.status).json(response.data);
   } catch (err) {
-    logger.error("addOrder error", {
+    console.error("addOrder error", {
       error: err.message,
       responseStatus: err.response?.status,
       responseData: err.response?.data,
