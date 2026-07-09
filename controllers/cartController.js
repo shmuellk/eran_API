@@ -34,7 +34,7 @@ const addOrder = async (req, res) => {
     console.log("addOrder called", { body: req.body });
 
     const sapUrl = "http://app.record.a-zuzit.co.il/XIS_Record.SLWS/SAPB1_API/B1SLW/AddOrder";
-    console.log("addOrder sending to SAP", { url: sapUrl, body: req.body });
+    console.log("addOrder sending to SAP", { url: sapUrl, body: JSON.stringify(req.body) });
     const response = await axios.post(
       sapUrl,
       req.body,
