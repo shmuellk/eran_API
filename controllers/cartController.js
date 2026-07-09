@@ -40,6 +40,8 @@ const addOrder = async (req, res) => {
       req.body,
       { headers: { "Content-Type": "application/json" } }
     );
+    console.log("response = "+ response);
+    
     res.status(response.status).json(response.data);
   } catch (err) {
     console.error("addOrder error", {
