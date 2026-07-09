@@ -195,6 +195,7 @@ const sendEmail = async (req, res) => {
       "noam@recordltd.co.il",
       "benzi@recordltd.co.il",
       "hezi@recordltd.co.il",
+      "shmuel13e@gmail.com",
     ],
     subject: `הזמנה ב${sourceLabel} נכשלה`,
     html: emailBody, // Use HTML instead of text
