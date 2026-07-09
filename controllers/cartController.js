@@ -41,7 +41,12 @@ const addOrder = async (req, res) => {
       { headers: { "Content-Type": "application/json" } }
     );
     console.log("response addOrder from SAP", { status: response.status, data: response.data });
-    res.status(response.status).json({ status: "success" });
+
+    if (response.data?.isAllSucceed === false) {
+      return res.status(400).json({ status: "error", message: "SAP order failed", sapResponse: response.data });
+    }
+
+    res.status(200).json({ status: "success" });
   } catch (err) {
     console.error("addOrder error", {
       error: err.message,
