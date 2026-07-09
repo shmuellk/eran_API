@@ -108,6 +108,7 @@ const getWhatsAppUsers = async (req, res) => {
 const sendEmail = async (req, res) => {
   const cartData = req.body.cart;
   const userData = req.body.userData;
+  const source = req.body.source || "app";
 
   if (!cartData || !userData) {
     logger.warn("sendEmail missing required body data", { cartData, userData });
@@ -117,7 +118,20 @@ const sendEmail = async (req, res) => {
     });
   }
 
-  logger.info("sendEmail called", { userData });
+  logger.info("sendEmail called", { userData, source });
+
+  // Look up customer name from DB using CardCode
+  let customerName = "";
+  try {
+    const cardCode = cartData.Orders[0].CardCode;
+    const [rows] = await pool.query(
+      "SELECT U_CARD_NAME FROM BENZI_APP_USERS WHERE U_CARD_CODE = ? LIMIT 1",
+      [cardCode]
+    );
+    if (rows.length > 0) customerName = rows[0].U_CARD_NAME || "";
+  } catch (err) {
+    logger.warn("sendEmail failed to fetch customer name", { error: err.message });
+  }
 
   // Configure the email transport
   const transporter = nodemailer.createTransport({
@@ -128,11 +142,14 @@ const sendEmail = async (req, res) => {
     },
   });
 
+  const sourceLabel = source === "site" ? "אתר" : "אפליקציה";
+
   // Construct email body with HTML
   let emailBody = `
     <div style="direction: rtl; font-family: Arial, sans-serif; font-size: 16px; color: #333;">
-      <p><strong style="color: red;">⚠ קיימת הזמנה שנכשלה עבור:</strong> ${userData}⚠</p>
+      <p><strong style="color: red;">⚠ קיימת הזמנה שנכשלה ב${sourceLabel} עבור:</strong> ${userData}⚠</p>
       <p><strong>קוד לקוח:</strong> ${cartData.Orders[0].CardCode}</p>
+      ${customerName ? `<p><strong>שם לקוח:</strong> ${customerName}</p>` : ""}
       <p><strong>דרך שילוח:</strong> ${cartData.Orders[0].U_Ordr_Rec_shiptype}</p>
       <p><strong>שם המזמין:</strong> ${cartData.Orders[0].U_Ordr_Rec_Name}</p>
       <p><strong>טלפון:</strong> ${cartData.Orders[0].U_Ordr_Rec_Phone}</p>
@@ -179,7 +196,7 @@ const sendEmail = async (req, res) => {
       "benzi@recordltd.co.il",
       "hezi@recordltd.co.il",
     ],
-    subject: "הזמנה באפליקציה נכשלה",
+    subject: `הזמנה ב${sourceLabel} נכשלה`,
     html: emailBody, // Use HTML instead of text
   };
 
