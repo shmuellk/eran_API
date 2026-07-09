@@ -120,14 +120,18 @@ const sendEmail = async (req, res) => {
 
   logger.info("sendEmail called", { userData, source });
 
-  // Look up customer name from DB using CardCode
+  // Look up customer name from DB using CardCode — 3-second timeout to avoid blocking email send
   let customerName = "";
   try {
     const cardCode = cartData.Orders[0].CardCode;
-    const [rows] = await pool.query(
+    const queryPromise = pool.query(
       "SELECT U_CARD_NAME FROM BENZI_APP_USERS WHERE U_CARD_CODE = ? LIMIT 1",
       [cardCode]
     );
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("DB query timeout")), 3000)
+    );
+    const [rows] = await Promise.race([queryPromise, timeoutPromise]);
     if (rows.length > 0) customerName = rows[0].U_CARD_NAME || "";
   } catch (err) {
     logger.warn("sendEmail failed to fetch customer name", { error: err.message });
@@ -144,16 +148,18 @@ const sendEmail = async (req, res) => {
 
   const sourceLabel = source === "site" ? "אתר" : "אפליקציה";
 
-  // Construct email body with HTML
-  let emailBody = `
+  let emailBody;
+  try {
+    const order = cartData.Orders[0];
+    emailBody = `
     <div style="direction: rtl; font-family: Arial, sans-serif; font-size: 16px; color: #333;">
       <p><strong style="color: red;">⚠ קיימת הזמנה שנכשלה ב${sourceLabel} עבור:</strong> ${userData}⚠</p>
-      <p><strong>קוד לקוח:</strong> ${cartData.Orders[0].CardCode}</p>
+      <p><strong>קוד לקוח:</strong> ${order.CardCode}</p>
       ${customerName ? `<p><strong>שם לקוח:</strong> ${customerName}</p>` : ""}
-      <p><strong>דרך שילוח:</strong> ${cartData.Orders[0].U_Ordr_Rec_shiptype}</p>
-      <p><strong>שם המזמין:</strong> ${cartData.Orders[0].U_Ordr_Rec_Name}</p>
-      <p><strong>טלפון:</strong> ${cartData.Orders[0].U_Ordr_Rec_Phone}</p>
-      <p><strong>הערות למשלוח:</strong> ${cartData.Orders[0].Comments}</p>
+      <p><strong>דרך שילוח:</strong> ${order.U_Ordr_Rec_shiptype}</p>
+      <p><strong>שם המזמין:</strong> ${order.U_Ordr_Rec_Name}</p>
+      <p><strong>טלפון:</strong> ${order.U_Ordr_Rec_Phone}</p>
+      <p><strong>הערות למשלוח:</strong> ${order.Comments}</p>
       <hr style="border-top: 1px solid #000;">
       <h3 style="color: blue;">📦 פרטי ההזמנה:</h3>
       <table style="width: 100%; border-collapse: collapse; text-align: right;">
@@ -167,25 +173,25 @@ const sendEmail = async (req, res) => {
         <tbody>
   `;
 
-  cartData.Orders[0].Rows.forEach((item, index) => {
-    emailBody += `
+    (order.Rows || []).forEach((item, index) => {
+      emailBody += `
           <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">${index + 1}</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${
-              item.ItemCode
-            }</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">${
-              item.Quantity
-            }</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${item.ItemCode}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${item.Quantity}</td>
           </tr>
     `;
-  });
+    });
 
-  emailBody += `
+    emailBody += `
         </tbody>
       </table>
     </div>
   `;
+  } catch (err) {
+    logger.error("sendEmail failed to build email body", { error: err.message });
+    return res.status(500).json({ status: "error", message: "Failed to build email body" });
+  }
 
   const mailOptions = {
     from: "recordfailed@gmail.com",
@@ -198,7 +204,7 @@ const sendEmail = async (req, res) => {
       "shmuel13e@gmail.com",
     ],
     subject: `הזמנה ב${sourceLabel} נכשלה`,
-    html: emailBody, // Use HTML instead of text
+    html: emailBody,
   };
 
   try {
