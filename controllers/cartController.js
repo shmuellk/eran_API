@@ -40,7 +40,7 @@ const addOrder = async (req, res) => {
       req.body,
       { headers: { "Content-Type": "application/json" } }
     );
-    console.log("response = "+ response);
+    console.log("response addOrder sending to SAP = "+ JSON.stringify(response));
     
     res.status(response.status).json(response.data);
   } catch (err) {
