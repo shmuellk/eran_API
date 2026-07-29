@@ -12,6 +12,7 @@ const getArmorsList = async (req, res) => {
       SELECT 
           ROW_NUMBER() OVER (ORDER BY BENZI_APP_USERS_WISHLIST.ITEMCODE) AS ID,
           BENZI_APP_USERS_WISHLIST.ITEMCODE,
+          BENZI_APP_USERS_WISHLIST.ITEMCODE AS CATALOG_NUMBER,
           BENZI_APP_USERS_WISHLIST.AMOUNT,
           cards.IMAGE,
           cards.NET_PRICE,

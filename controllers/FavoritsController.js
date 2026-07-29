@@ -11,6 +11,7 @@ const getFavoritsList = async (req, res) => {
       SELECT 
           ROW_NUMBER() OVER (ORDER BY BENZI_APP_USERS_FAVORITES.ITEMCODE) AS ID,
           BENZI_APP_USERS_FAVORITES.ITEMCODE,
+          BENZI_APP_USERS_FAVORITES.ITEMCODE AS CATALOG_NUMBER,
           cards.IMAGE,
           cards.NET_PRICE,
           cards.GROSS_PRICE,
