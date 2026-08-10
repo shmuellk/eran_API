@@ -870,6 +870,7 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
     });
 
     const query = `
+    WITH Filtered AS (
     SELECT
         noam.MANUFACTURER,
         noam.MODEL,
@@ -882,16 +883,20 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
         noam.CAPACITY,
         noam.CAR_NOTE,
         noam.YEAR_LIMIT,
-        noam.catalog_number,
         cards.IMAGE,
         cards.sku_code,
-        cards.delivery_date
+        cards.delivery_date,
+        noam.CATALOG_NUMBER,
+        ROW_NUMBER() OVER (
+            PARTITION BY cards.sku_code
+            ORDER BY noam.CATALOG_NUMBER
+        ) AS rn
     FROM noam
     JOIN cards
         ON noam.catalog_number = cards.catalog_number
-    WHERE 
+    WHERE
         noam.manufacturer = ?
-        AND (? = "" OR noam.model = ?)
+        AND (? = "" OR noam.model = ?) 
         AND (? = "" 
             OR CONCAT(',', noam.manufacture_years, ',') LIKE CONCAT('%,', ?, ',%')
             OR noam.manufacture_years = "")
@@ -912,8 +917,10 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
             OR noam.year_limit LIKE CONCAT('%,', ?)
             OR noam.year_limit = "")
         AND (? = "" OR noam.car_note = ? OR noam.car_note = "")
-        AND cards.site_display = "זמין לגולשים"
-        AND (
+        
+        
+        AND cards.site_display = 'זמין לגולשים'
+       AND (
             noam.CHILD_GROUP IN (
                 SELECT DISTINCT child_group_search.child_group
                 FROM child_group_search
@@ -925,20 +932,28 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
             )
             OR ? = "" 
         )
-    GROUP BY
-        noam.MANUFACTURER,
-        noam.MODEL,
-        noam.PARENT_GROUP,
-        noam.ITEM_GROUP,
-        noam.CHILD_GROUP,
-        noam.DESCRIPTION_NOTE,
-        noam.FROM_YEAR,
-        noam.UNTIL_YEAR,
-        noam.CAR_NOTE,
-        noam.YEAR_LIMIT
-    ORDER BY
-        noam.CHILD_GROUP
-    LIMIT ?;
+)
+
+SELECT
+    MANUFACTURER,
+    MODEL,
+    PARENT_GROUP,
+    ITEM_GROUP,
+    CHILD_GROUP,
+    DESCRIPTION_NOTE,
+    FROM_YEAR,
+    UNTIL_YEAR,
+    CAPACITY,
+    CAR_NOTE,
+    YEAR_LIMIT,
+    IMAGE,
+    sku_code,
+    delivery_date,
+    CATALOG_NUMBER
+FROM Filtered
+WHERE rn = 1
+ORDER BY CRC32(sku_code)
+ LIMIT ?;
     `;
     const values = [
       MANUFACTURER,
