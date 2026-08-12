@@ -374,93 +374,106 @@ const getProdactsByPARENT_GROUP = async (req, res) => {
     });
 
     const [results] = await pool.query(`
+WITH Filtered AS (
+    SELECT
+        noam.MANUFACTURER,
+        noam.MODEL,
+        noam.PARENT_GROUP,
+        noam.ITEM_GROUP,
+        noam.CHILD_GROUP,
+        noam.DESCRIPTION_NOTE,
+        noam.FROM_YEAR,
+        noam.UNTIL_YEAR,
+        noam.CAPACITY,
+        noam.CAR_NOTE,
+        noam.YEAR_LIMIT,
+        noam.catalog_number,
+        cards.IMAGE,
+        cards.sku_code,
+        cards.delivery_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY cards.sku_code
+            ORDER BY noam.catalog_number
+        ) AS rn
+    FROM noam
+    JOIN cards
+        ON noam.catalog_number = cards.catalog_number
+    WHERE
+        noam.manufacturer = "${MANUFACTURER}"
+        AND (
+            "${MODEL}" = ""
+            OR noam.model = "${MODEL}"
+        )
+        AND (
+            "${MANUFACTURE_YEAR}" = ""
+            OR CONCAT(',', noam.manufacture_years, ',')
+               LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
+            OR noam.manufacture_years = ""
+        )
+        AND (
+            "${ENGINE_MODEL}" = ""
+            OR noam.engine_model = "${ENGINE_MODEL}"
+            OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
+            OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
+            OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}")
+            OR noam.engine_model = ""
+        )
+        AND (
+            "${GEAR}" = ""
+            OR noam.gear = "${GEAR}"
+            OR noam.gear = ""
+        )
+        AND (
+            "${PROPULSION}" = ""
+            OR noam.propulsion = "${PROPULSION}"
+            OR noam.propulsion = ""
+        )
+        AND (
+            "${DOORS}" = ""
+            OR noam.doors = "${DOORS}"
+            OR noam.doors = ""
+        )
+        AND (
+            "${BODY}" = ""
+            OR noam.body = "${BODY}"
+            OR noam.body = ""
+        )
+        AND (
+            "${YEAR_LIMIT}" = ""
+            OR noam.year_limit = "${YEAR_LIMIT}"
+            OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
+            OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
+            OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}")
+            OR noam.year_limit = ""
+        )
+        AND (
+            "${NOTE}" = ""
+            OR noam.car_note = "${NOTE}"
+            OR noam.car_note = ""
+        )
+        AND cards.site_display = "זמין לגולשים"
+        AND noam.PARENT_GROUP = "${PARENT_GROUP}"
+)
+
 SELECT
-    noam.MANUFACTURER,
-    noam.MODEL,
-    noam.PARENT_GROUP,
-    noam.ITEM_GROUP,
-    noam.CHILD_GROUP,
-    noam.DESCRIPTION_NOTE,
-    noam.FROM_YEAR,
-    noam.UNTIL_YEAR,
-    noam.CAPACITY,
-    noam.CAR_NOTE,
-    noam.YEAR_LIMIT,
-    noam.catalog_number,
-    cards.IMAGE,
-    cards.sku_code,
-    cards.delivery_date
-FROM noam
-JOIN cards
-    ON noam.catalog_number = cards.catalog_number
-WHERE
-    noam.manufacturer = "${MANUFACTURER}"
-    AND (
-        "${MODEL}" = ""
-        OR noam.model = "${MODEL}"
-    )
-    AND (
-        "${MANUFACTURE_YEAR}" = ""
-        OR CONCAT(',', noam.manufacture_years, ',')
-           LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
-        OR noam.manufacture_years = ""
-    )
-    AND (
-       "${ENGINE_MODEL}" = ""
-        OR noam.engine_model = "${ENGINE_MODEL}"
-        OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
-        OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
-        OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}")
-        OR noam.engine_model = ""
-    )
-    AND (
-        "${GEAR}" = ""
-        OR noam.gear = "${GEAR}"
-        OR noam.gear = ""
-    )
-    AND (
-        "${PROPULSION}" = ""
-        OR noam.propulsion = "${PROPULSION}"
-        OR noam.propulsion = ""
-    )
-    AND (
-        "${DOORS}" = ""
-        OR noam.doors = "${DOORS}"
-        OR noam.doors = ""
-    )
-    AND (
-        "${BODY}" = ""
-        OR noam.body = "${BODY}"
-        OR noam.body = ""
-    )
-    AND (
-       "${YEAR_LIMIT}" = ""
-        OR noam.year_limit = "${YEAR_LIMIT}"
-        OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
-        OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
-        OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}")
-        OR noam.year_limit = ""
-    )
-    AND (
-        "${NOTE}" = ""
-        OR noam.car_note = "${NOTE}"
-        OR noam.car_note = ""
-    )
-    AND cards.site_display = "זמין לגולשים"
-    AND noam.PARENT_GROUP = "${PARENT_GROUP}"
-GROUP BY
-    noam.MANUFACTURER,
-    noam.MODEL,
-    noam.PARENT_GROUP,
-    noam.ITEM_GROUP,
-    noam.CHILD_GROUP,
-    noam.DESCRIPTION_NOTE,
-    noam.FROM_YEAR,
-    noam.UNTIL_YEAR,
-    noam.CAR_NOTE,
-    noam.YEAR_LIMIT
-ORDER BY
-    noam.CHILD_GROUP
+    MANUFACTURER,
+    MODEL,
+    PARENT_GROUP,
+    ITEM_GROUP,
+    CHILD_GROUP,
+    DESCRIPTION_NOTE,
+    FROM_YEAR,
+    UNTIL_YEAR,
+    CAPACITY,
+    CAR_NOTE,
+    YEAR_LIMIT,
+    catalog_number,
+    IMAGE,
+    sku_code,
+    delivery_date
+FROM Filtered
+WHERE rn = 1
+ORDER BY CHILD_GROUP
 LIMIT ${rowLimit};
 `);
     logger.info("getProdactsByPARENT_GROUP result", { result: results });
@@ -512,94 +525,107 @@ const getProdactsByITEM_GROUP = async (req, res) => {
     });
 
     const [results] = await pool.query(`
+WITH Filtered AS (
+    SELECT
+        noam.MANUFACTURER,
+        noam.MODEL,
+        noam.PARENT_GROUP,
+        noam.ITEM_GROUP,
+        noam.CHILD_GROUP,
+        noam.DESCRIPTION_NOTE,
+        noam.FROM_YEAR,
+        noam.UNTIL_YEAR,
+        noam.CAPACITY,
+        noam.CAR_NOTE,
+        noam.YEAR_LIMIT,
+        noam.catalog_number,
+        cards.IMAGE,
+        cards.sku_code,
+        cards.delivery_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY cards.sku_code
+            ORDER BY noam.catalog_number
+        ) AS rn
+    FROM noam
+    JOIN cards
+        ON noam.catalog_number = cards.catalog_number
+    WHERE
+        noam.manufacturer = "${MANUFACTURER}"
+        AND (
+            "${MODEL}" = ""
+            OR noam.model = "${MODEL}"
+        )
+        AND (
+            "${MANUFACTURE_YEAR}" = ""
+            OR CONCAT(',', noam.manufacture_years, ',')
+               LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
+            OR noam.manufacture_years = ""
+        )
+        AND (
+            "${ENGINE_MODEL}" = ""
+            OR noam.engine_model = "${ENGINE_MODEL}"
+            OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
+            OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
+            OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}")
+            OR noam.engine_model = ""
+        )
+        AND (
+            "${GEAR}" = ""
+            OR noam.gear = "${GEAR}"
+            OR noam.gear = ""
+        )
+        AND (
+            "${PROPULSION}" = ""
+            OR noam.propulsion = "${PROPULSION}"
+            OR noam.propulsion = ""
+        )
+        AND (
+            "${DOORS}" = ""
+            OR noam.doors = "${DOORS}"
+            OR noam.doors = ""
+        )
+        AND (
+            "${BODY}" = ""
+            OR noam.body = "${BODY}"
+            OR noam.body = ""
+        )
+        AND (
+            "${YEAR_LIMIT}" = ""
+            OR noam.year_limit = "${YEAR_LIMIT}"
+            OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
+            OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
+            OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}")
+            OR noam.year_limit = ""
+        )
+        AND (
+            "${NOTE}" = ""
+            OR noam.car_note = "${NOTE}"
+            OR noam.car_note = ""
+        )
+        AND cards.site_display = "זמין לגולשים"
+        AND noam.PARENT_GROUP = "${PARENT_GROUP}"
+        AND noam.ITEM_GROUP   = "${ITEM_GROUP}"
+)
+
 SELECT
-    noam.MANUFACTURER,
-    noam.MODEL,
-    noam.PARENT_GROUP,
-    noam.ITEM_GROUP,
-    noam.CHILD_GROUP,
-    noam.DESCRIPTION_NOTE,
-    noam.FROM_YEAR,
-    noam.UNTIL_YEAR,
-    noam.CAPACITY,
-    noam.CAR_NOTE,
-    noam.YEAR_LIMIT,
-    noam.catalog_number,
-    cards.IMAGE,
-    cards.sku_code,
-    cards.delivery_date
-FROM noam
-JOIN cards
-    ON noam.catalog_number = cards.catalog_number
-WHERE
-    noam.manufacturer = "${MANUFACTURER}"
-    AND (
-        "${MODEL}" = ""
-        OR noam.model = "${MODEL}"
-    )
-    AND (
-        "${MANUFACTURE_YEAR}" = ""
-        OR CONCAT(',', noam.manufacture_years, ',')
-           LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
-        OR noam.manufacture_years = ""
-    )
-    AND (
-       "${ENGINE_MODEL}" = ""
-        OR noam.engine_model = "${ENGINE_MODEL}"
-        OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
-        OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
-        OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}")
-        OR noam.engine_model = ""
-    )
-    AND (
-        "${GEAR}" = ""
-        OR noam.gear = "${GEAR}"
-        OR noam.gear = ""
-    )
-    AND (
-        "${PROPULSION}" = ""
-        OR noam.propulsion = "${PROPULSION}"
-        OR noam.propulsion = ""
-    )
-    AND (
-        "${DOORS}" = ""
-        OR noam.doors = "${DOORS}"
-        OR noam.doors = ""
-    )
-    AND (
-        "${BODY}" = ""
-        OR noam.body = "${BODY}"
-        OR noam.body = ""
-    )
-    AND (
-       "${YEAR_LIMIT}" = ""
-        OR noam.year_limit = "${YEAR_LIMIT}"
-        OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
-        OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
-        OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}")
-        OR noam.year_limit = ""
-    )
-    AND (
-        "${NOTE}" = ""
-        OR noam.car_note = "${NOTE}"
-        OR noam.car_note = ""
-    )
-    AND cards.site_display = "זמין לגולשים"
-    AND noam.PARENT_GROUP = "${PARENT_GROUP}"
-    AND noam.ITEM_GROUP   = "${ITEM_GROUP}"
-GROUP BY
-    noam.MANUFACTURER,
-    noam.MODEL,
-    noam.PARENT_GROUP,
-    noam.ITEM_GROUP,
-    noam.CHILD_GROUP,
-    noam.DESCRIPTION_NOTE,
-    noam.FROM_YEAR,
-    noam.UNTIL_YEAR,
-    noam.CAR_NOTE,
-    noam.YEAR_LIMIT
-ORDER BY
-    noam.CHILD_GROUP
+    MANUFACTURER,
+    MODEL,
+    PARENT_GROUP,
+    ITEM_GROUP,
+    CHILD_GROUP,
+    DESCRIPTION_NOTE,
+    FROM_YEAR,
+    UNTIL_YEAR,
+    CAPACITY,
+    CAR_NOTE,
+    YEAR_LIMIT,
+    catalog_number,
+    IMAGE,
+    sku_code,
+    delivery_date
+FROM Filtered
+WHERE rn = 1
+ORDER BY CHILD_GROUP
 LIMIT ${rowLimit};
 `);
     logger.info("getProdactsByITEM_GROUP result", { result: results });
@@ -653,95 +679,108 @@ const getProdactsByCHILD_GROUP = async (req, res) => {
     });
 
     const [results] = await pool.query(`
+WITH Filtered AS (
+    SELECT
+        noam.MANUFACTURER,
+        noam.MODEL,
+        noam.PARENT_GROUP,
+        noam.ITEM_GROUP,
+        noam.CHILD_GROUP,
+        noam.DESCRIPTION_NOTE,
+        noam.FROM_YEAR,
+        noam.UNTIL_YEAR,
+        noam.CAPACITY,
+        noam.CAR_NOTE,
+        noam.YEAR_LIMIT,
+        noam.catalog_number,
+        cards.IMAGE,
+        cards.sku_code,
+        cards.delivery_date,
+        ROW_NUMBER() OVER (
+            PARTITION BY cards.sku_code
+            ORDER BY noam.catalog_number
+        ) AS rn
+    FROM noam
+    JOIN cards
+        ON noam.catalog_number = cards.catalog_number
+    WHERE
+        noam.manufacturer = "${MANUFACTURER}"
+        AND (
+            "${MODEL}" = ""
+            OR noam.model = "${MODEL}"
+        )
+        AND (
+            "${MANUFACTURE_YEAR}" = ""
+            OR CONCAT(',', noam.manufacture_years, ',')
+               LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
+            OR noam.manufacture_years = ""
+        )
+        AND (
+            "${ENGINE_MODEL}" = ""
+            OR noam.engine_model = "${ENGINE_MODEL}"
+            OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
+            OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
+            OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}")
+            OR noam.engine_model = ""
+        )
+        AND (
+            "${GEAR}" = ""
+            OR noam.gear = "${GEAR}"
+            OR noam.gear = ""
+        )
+        AND (
+            "${PROPULSION}" = ""
+            OR noam.propulsion = "${PROPULSION}"
+            OR noam.propulsion = ""
+        )
+        AND (
+            "${DOORS}" = ""
+            OR noam.doors = "${DOORS}"
+            OR noam.doors = ""
+        )
+        AND (
+            "${BODY}" = ""
+            OR noam.body = "${BODY}"
+            OR noam.body = ""
+        )
+        AND (
+            "${YEAR_LIMIT}" = ""
+            OR noam.year_limit = "${YEAR_LIMIT}"
+            OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
+            OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
+            OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}")
+            OR noam.year_limit = ""
+        )
+        AND (
+            "${NOTE}" = ""
+            OR noam.car_note = "${NOTE}"
+            OR noam.car_note = ""
+        )
+        AND cards.site_display = "זמין לגולשים"
+        AND noam.PARENT_GROUP = "${PARENT_GROUP}"
+        AND noam.ITEM_GROUP   = "${ITEM_GROUP}"
+        AND noam.CHILD_GROUP  = "${CHILD_GROUP}"
+)
+
 SELECT
-    noam.MANUFACTURER,
-    noam.MODEL,
-    noam.PARENT_GROUP,
-    noam.ITEM_GROUP,
-    noam.CHILD_GROUP,
-    noam.DESCRIPTION_NOTE,
-    noam.FROM_YEAR,
-    noam.UNTIL_YEAR,
-    noam.CAPACITY,
-    noam.CAR_NOTE,
-    noam.YEAR_LIMIT,
-    noam.catalog_number,
-    cards.IMAGE,
-    cards.sku_code,
-    cards.delivery_date
-FROM noam
-JOIN cards
-    ON noam.catalog_number = cards.catalog_number
-WHERE
-    noam.manufacturer = "${MANUFACTURER}"
-    AND (
-        "${MODEL}" = ""
-        OR noam.model = "${MODEL}"
-    )
-    AND (
-        "${MANUFACTURE_YEAR}" = ""
-        OR CONCAT(',', noam.manufacture_years, ',')
-           LIKE CONCAT('%,', "${MANUFACTURE_YEAR}", ',%')
-        OR noam.manufacture_years = ""
-    )
-    AND (
-       "${ENGINE_MODEL}" = ""
-        OR noam.engine_model = "${ENGINE_MODEL}"
-        OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}", ',%')
-        OR noam.engine_model LIKE CONCAT("${ENGINE_MODEL}", ',%')
-        OR noam.engine_model LIKE CONCAT('%,', "${ENGINE_MODEL}")
-        OR noam.engine_model = ""
-    )
-    AND (
-        "${GEAR}" = ""
-        OR noam.gear = "${GEAR}"
-        OR noam.gear = ""
-    )
-    AND (
-        "${PROPULSION}" = ""
-        OR noam.propulsion = "${PROPULSION}"
-        OR noam.propulsion = ""
-    )
-    AND (
-        "${DOORS}" = ""
-        OR noam.doors = "${DOORS}"
-        OR noam.doors = ""
-    )
-    AND (
-        "${BODY}" = ""
-        OR noam.body = "${BODY}"
-        OR noam.body = ""
-    )
-    AND (
-       "${YEAR_LIMIT}" = ""
-        OR noam.year_limit = "${YEAR_LIMIT}"
-        OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}", ',%')
-        OR noam.year_limit LIKE CONCAT("${YEAR_LIMIT}", ',%')
-        OR noam.year_limit LIKE CONCAT('%,', "${YEAR_LIMIT}")
-        OR noam.year_limit = ""
-    )
-    AND (
-        "${NOTE}" = ""
-        OR noam.car_note = "${NOTE}"
-        OR noam.car_note = ""
-    )
-    AND cards.site_display = "זמין לגולשים"
-    AND noam.PARENT_GROUP = "${PARENT_GROUP}"
-    AND noam.ITEM_GROUP   = "${ITEM_GROUP}"
-    AND noam.CHILD_GROUP  = "${CHILD_GROUP}"
-GROUP BY
-    noam.MANUFACTURER,
-    noam.MODEL,
-    noam.PARENT_GROUP,
-    noam.ITEM_GROUP,
-    noam.CHILD_GROUP,
-    noam.DESCRIPTION_NOTE,
-    noam.FROM_YEAR,
-    noam.UNTIL_YEAR,
-    noam.CAR_NOTE,
-    noam.YEAR_LIMIT
-ORDER BY
-    noam.CHILD_GROUP
+    MANUFACTURER,
+    MODEL,
+    PARENT_GROUP,
+    ITEM_GROUP,
+    CHILD_GROUP,
+    DESCRIPTION_NOTE,
+    FROM_YEAR,
+    UNTIL_YEAR,
+    CAPACITY,
+    CAR_NOTE,
+    YEAR_LIMIT,
+    catalog_number,
+    IMAGE,
+    sku_code,
+    delivery_date
+FROM Filtered
+WHERE rn = 1
+ORDER BY CHILD_GROUP
 LIMIT ${rowLimit};
 `);
     logger.info("getProdactsByCHILD_GROUP result", { result: results });
