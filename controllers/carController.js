@@ -392,7 +392,7 @@ WITH Filtered AS (
         cards.sku_code,
         cards.delivery_date,
         ROW_NUMBER() OVER (
-            PARTITION BY cards.sku_code
+            PARTITION BY cards.image
             ORDER BY noam.catalog_number
         ) AS rn
     FROM noam
@@ -543,7 +543,7 @@ WITH Filtered AS (
         cards.sku_code,
         cards.delivery_date,
         ROW_NUMBER() OVER (
-            PARTITION BY cards.sku_code
+            PARTITION BY cards.image
             ORDER BY noam.catalog_number
         ) AS rn
     FROM noam
@@ -697,7 +697,7 @@ WITH Filtered AS (
         cards.sku_code,
         cards.delivery_date,
         ROW_NUMBER() OVER (
-            PARTITION BY cards.sku_code
+            PARTITION BY cards.image
             ORDER BY noam.catalog_number
         ) AS rn
     FROM noam
@@ -927,7 +927,7 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
         cards.delivery_date,
         noam.CATALOG_NUMBER,
         ROW_NUMBER() OVER (
-            PARTITION BY cards.sku_code
+            PARTITION BY cards.image
             ORDER BY noam.CATALOG_NUMBER
         ) AS rn
     FROM noam
