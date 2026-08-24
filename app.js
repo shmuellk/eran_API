@@ -10,6 +10,7 @@ const FavoritsRoute = require("./routers/FavoritsRouts");
 const armorRouts = require("./routers/armorRouts");
 const cronRouter = require("./routers/cronRouter");
 const barRouter = require("./routers/barRouts");
+const noamRouter = require("./routers/noamRouts");
 
 const app = express();
 app.use(cors());
@@ -27,5 +28,6 @@ app.use("/favorits", FavoritsRoute);
 app.use("/armor", armorRouts);
 app.use("/cron", cronRouter);
 app.use("/bar", barRouter);
+app.use("/noam", noamRouter);
 
 module.exports = app;
