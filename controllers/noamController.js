@@ -1,7 +1,7 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 500;
 
 const NOAM_COLUMNS = `
   id,
