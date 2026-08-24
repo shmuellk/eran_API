@@ -35,7 +35,7 @@ const getNoamList = async (req, res) => {
     logger.info("getNoamList called", { page, offset, limit: PAGE_SIZE });
 
     const [rows] = await pool.query(
-      `SELECT ${NOAM_COLUMNS} FROM noam ORDER BY id LIMIT ? OFFSET ?;`,
+      `SELECT ${NOAM_COLUMNS} FROM noam LIMIT ? OFFSET ?;`,
       [PAGE_SIZE, offset]
     );
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM noam;`);
