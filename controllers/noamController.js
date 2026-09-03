@@ -1,44 +1,43 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
+const { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS } = require("./noamColumns");
+const { buildNoamWhere, buildNoamOrderBy } = require("./noamQuery");
 
 const PAGE_SIZE = 500;
+const MAX_DISTINCT_VALUES = 500;
 
-const NOAM_COLUMNS = `
-  id,
-  parent_group,
-  item_group,
-  child_group,
-  catalog_number,
-  manufacturer,
-  model,
-  capacity,
-  from_year,
-  until_year,
-  year_limit,
-  car_note,
-  description_note,
-  note,
-  engine_model,
-  manufacture_years,
-  propulsion,
-  gear,
-  body,
-  doors,
-  gas
-`;
+const parseFilters = (raw) => {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+};
 
 const getNoamList = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.PAGE, 10) || 1, 1);
     const offset = (page - 1) * PAGE_SIZE;
+    const filters = parseFilters(req.query.FILTERS);
+    const sort = req.query.SORT_COLUMN
+      ? { column: req.query.SORT_COLUMN, dir: req.query.SORT_DIR }
+      : null;
 
-    logger.info("getNoamList called", { page, offset, limit: PAGE_SIZE });
+    const { whereSql, params } = buildNoamWhere(filters);
+    const orderBySql = buildNoamOrderBy(sort);
+
+    logger.info("getNoamList called", { page, offset, limit: PAGE_SIZE, filters, sort });
 
     const [rows] = await pool.query(
-      `SELECT ${NOAM_COLUMNS} FROM noam LIMIT ? OFFSET ?;`,
-      [PAGE_SIZE, offset]
+      `SELECT ${SELECT_COLUMNS.join(", ")} FROM noam ${whereSql} ${orderBySql} LIMIT ? OFFSET ?;`,
+      [...params, PAGE_SIZE, offset]
     );
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM noam;`);
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM noam ${whereSql};`,
+      params
+    );
 
     logger.info("getNoamList result", { count: rows.length, total });
 
@@ -59,6 +58,117 @@ const getNoamList = async (req, res) => {
   }
 };
 
+// Distinct values for a single column's filter checklist, optionally text-searched
+// and optionally narrowed by the OTHER currently-active column filters (never by
+// the filter on this same column, so picking a value never shrinks its own list).
+const getDistinctValues = async (req, res) => {
+  try {
+    const { COLUMN, SEARCH = "" } = req.query;
+    const config = NOAM_COLUMNS_CONFIG[COLUMN];
+    if (!config) {
+      return res.status(400).json({ status: "error", message: "Invalid column" });
+    }
+
+    const filters = parseFilters(req.query.FILTERS);
+    delete filters[COLUMN];
+
+    const { whereSql, params } = buildNoamWhere(filters);
+    const limit = Math.min(parseInt(req.query.LIMIT, 10) || 200, MAX_DISTINCT_VALUES);
+
+    logger.info("getDistinctValues called", { column: COLUMN, search: SEARCH, filters, limit });
+
+    let values;
+    if (config.type === "csv_years") {
+      // manufacture_years stores whole CSV strings per row ("2018,2019,2020"), so the
+      // useful "distinct values" for a checklist are the individual years across all
+      // matching rows, not the distinct raw CSV strings. Flatten + dedupe in JS since
+      // MySQL has no clean way to split a CSV column into rows here.
+      const [rawRows] = await pool.query(
+        `SELECT DISTINCT ${config.column} AS value
+         FROM noam
+         ${whereSql}
+         ${whereSql ? "AND" : "WHERE"} ${config.column} <> '';`,
+        params
+      );
+      const yearSet = new Set();
+      rawRows.forEach((r) => {
+        String(r.value)
+          .split(",")
+          .map((y) => y.trim())
+          .filter(Boolean)
+          .forEach((y) => yearSet.add(y));
+      });
+      values = [...yearSet]
+        .filter((y) => y.includes(SEARCH))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+        .slice(0, limit);
+    } else {
+      const [rows] = await pool.query(
+        `SELECT DISTINCT ${config.column} AS value
+         FROM noam
+         ${whereSql}
+         ${whereSql ? "AND" : "WHERE"} ${config.column} <> '' AND ${config.column} LIKE ?
+         ORDER BY ${config.column}
+         LIMIT ?;`,
+        [...params, `%${SEARCH}%`, limit]
+      );
+      values = rows.map((r) => r.value);
+    }
+
+    res.status(200).json({ status: "success", result: values });
+  } catch (err) {
+    logger.error("getDistinctValues Database error", { error: err });
+    res.status(500).json({
+      status: "error",
+      message: "Error fetching distinct values",
+    });
+  }
+};
+
+// Mass update: applies to EVERY row matching the given filters, not just loaded rows.
+// column is validated against the writable whitelist; the WHERE clause is built by
+// the same shared, parameterized function used for reads.
+const updateColumn = async (req, res) => {
+  try {
+    const { column, value, filters } = req.body || {};
+    const config = NOAM_COLUMNS_CONFIG[column];
+
+    if (!config) {
+      return res.status(400).json({ status: "error", message: "Invalid column" });
+    }
+    if (!config.writable) {
+      return res.status(400).json({ status: "error", message: "Column is not updatable" });
+    }
+    if (value === undefined || value === null) {
+      return res.status(400).json({ status: "error", message: "Missing value" });
+    }
+
+    const { whereSql, params } = buildNoamWhere(filters);
+
+    logger.info("updateColumn called", { column, value, filters, whereSql });
+
+    const [result] = await pool.query(
+      `UPDATE noam SET ${config.column} = ? ${whereSql};`,
+      [value, ...params]
+    );
+
+    logger.info("updateColumn result", { affectedRows: result.affectedRows });
+
+    res.status(200).json({
+      status: "success",
+      affectedRows: result.affectedRows,
+    });
+  } catch (err) {
+    logger.error("updateColumn Database error", { error: err });
+    res.status(500).json({
+      status: "error",
+      message: "Error updating noam column",
+    });
+  }
+};
+
 module.exports = {
   getNoamList,
+  getDistinctValues,
+  updateColumn,
 };
