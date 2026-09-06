@@ -238,9 +238,32 @@ const saveChanges = async (req, res) => {
   }
 };
 
+// Deletes a single row by its primary key. Not exposed in the UI yet - added so
+// test/junk rows can be cleaned up directly via the API when needed.
+const deleteRow = async (req, res) => {
+  try {
+    const id = parseInt(req.query.id, 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ status: "error", message: "Invalid id" });
+    }
+
+    const [result] = await pool.query("DELETE FROM noam WHERE id = ?;", [id]);
+    logger.info("deleteRow result", { id, affectedRows: result.affectedRows });
+
+    res.status(200).json({ status: "success", affectedRows: result.affectedRows });
+  } catch (err) {
+    logger.error("deleteRow Database error", { error: err });
+    res.status(500).json({
+      status: "error",
+      message: "Error deleting row",
+    });
+  }
+};
+
 module.exports = {
   getNoamList,
   getDistinctValues,
   updateColumn,
   saveChanges,
+  deleteRow,
 };
