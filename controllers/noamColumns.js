@@ -4,12 +4,14 @@
 // type:
 //   "text"        - plain VARCHAR, string operators
 //   "numeric_text"- VARCHAR that holds a number (years, door count); needs CAST
+//   "integer"     - a genuine INT column (id) - compared directly, no CAST/REGEXP,
+//                   so the DB can actually use its index (matters a lot on large tables)
 //   "csv_list"    - VARCHAR holding a comma-separated list (manufacture_years)
 //
 // writable: whether "Update column" is allowed to target this column.
 
 const NOAM_COLUMNS_CONFIG = {
-  id: { column: "id", type: "numeric_text", writable: false },
+  id: { column: "id", type: "integer", writable: false },
   parent_group: { column: "parent_group", type: "text", writable: true },
   item_group: { column: "item_group", type: "text", writable: true },
   child_group: { column: "child_group", type: "text", writable: true },

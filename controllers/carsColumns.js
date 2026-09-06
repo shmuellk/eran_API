@@ -7,7 +7,7 @@
 // manufacture_year holds a single year per row, not a comma-separated list.
 
 const CARS_COLUMNS_CONFIG = {
-  id: { column: "id", type: "numeric_text", writable: false },
+  id: { column: "id", type: "integer", writable: false },
   model_code: { column: "model_code", type: "text", writable: false },
   manufacturer: { column: "manufacturer", type: "text", writable: true },
   model: { column: "model", type: "text", writable: true },

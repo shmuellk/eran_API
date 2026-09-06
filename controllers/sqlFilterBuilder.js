@@ -90,6 +90,41 @@ const buildNumericCondition = (column, op, filter) => {
   }
 };
 
+// For genuinely INT-typed columns (e.g. the id primary key). Unlike
+// buildNumericCondition, this never wraps the column in REGEXP/CAST - doing so
+// on a real integer column prevents the DB from using its index (measured 4+
+// seconds for a single primary-key lookup on a 5M-row table vs. instant with
+// a direct comparison), which noam's small size never surfaced but cars' did.
+const buildIntegerCondition = (column, op, filter) => {
+  if (op === "in") return buildInCondition(column, filter);
+
+  const n1 = toInt(filter.value);
+  if (op !== "between" && n1 === null) return null;
+
+  switch (op) {
+    case "eq":
+      return { sql: `${column} = ?`, params: [n1] };
+    case "neq":
+      return { sql: `${column} <> ?`, params: [n1] };
+    case "gt":
+      return { sql: `${column} > ?`, params: [n1] };
+    case "gte":
+      return { sql: `${column} >= ?`, params: [n1] };
+    case "lt":
+      return { sql: `${column} < ?`, params: [n1] };
+    case "lte":
+      return { sql: `${column} <= ?`, params: [n1] };
+    case "between": {
+      const from = toInt(filter.value);
+      const to = toInt(filter.value2);
+      if (from === null || to === null) return null;
+      return { sql: `${column} BETWEEN ? AND ?`, params: [from, to] };
+    }
+    default:
+      return null;
+  }
+};
+
 // For VARCHAR columns holding a comma-separated list (e.g. noam.manufacture_years:
 // "2018,2019,2020"). Membership test via the FIND_IN_SET-style pattern already
 // used elsewhere in this codebase (see carController.js).
@@ -132,6 +167,8 @@ const buildWhere = (columnsConfig, filters) => {
       condition = buildTextCondition(config.column, filter.op, filter);
     } else if (config.type === "numeric_text") {
       condition = buildNumericCondition(config.column, filter.op, filter);
+    } else if (config.type === "integer") {
+      condition = buildIntegerCondition(config.column, filter.op, filter);
     } else if (config.type === "csv_list") {
       condition = buildCsvListCondition(config.column, filter.op, filter);
     }
