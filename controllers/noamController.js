@@ -1,7 +1,9 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
 const { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS, ROW_EDITABLE_COLUMNS } = require("./noamColumns");
-const { buildNoamWhere, buildNoamOrderBy } = require("./noamQuery");
+const { buildWhere, buildOrderBy } = require("./sqlFilterBuilder");
+const buildNoamWhere = (filters) => buildWhere(NOAM_COLUMNS_CONFIG, filters);
+const buildNoamOrderBy = (sort) => buildOrderBy(NOAM_COLUMNS_CONFIG, sort);
 
 const PAGE_SIZE = 500;
 const MAX_DISTINCT_VALUES = 500;

@@ -4,7 +4,7 @@
 // type:
 //   "text"        - plain VARCHAR, string operators
 //   "numeric_text"- VARCHAR that holds a number (years, door count); needs CAST
-//   "csv_years"   - VARCHAR holding a comma-separated list of years (manufacture_years)
+//   "csv_list"    - VARCHAR holding a comma-separated list (manufacture_years)
 //
 // writable: whether "Update column" is allowed to target this column.
 
@@ -24,7 +24,7 @@ const NOAM_COLUMNS_CONFIG = {
   description_note: { column: "description_note", type: "text", writable: true },
   note: { column: "note", type: "text", writable: true },
   engine_model: { column: "engine_model", type: "text", writable: true },
-  manufacture_years: { column: "manufacture_years", type: "csv_years", writable: true },
+  manufacture_years: { column: "manufacture_years", type: "csv_list", writable: true },
   propulsion: { column: "propulsion", type: "text", writable: true },
   gear: { column: "gear", type: "text", writable: true },
   body: { column: "body", type: "text", writable: true },

@@ -1,4 +1,7 @@
-const { NOAM_COLUMNS_CONFIG } = require("./noamColumns");
+// Generic, table-agnostic WHERE/ORDER BY builder. Takes a columnsConfig map
+// ({ frontendKey: { column, type, writable } }) as a parameter rather than
+// importing one directly, so the same safe, parameterized logic can be reused
+// by any table's controller (noam, cars, ...) without duplicating it.
 
 const toInt = (v) => {
   const n = parseInt(v, 10);
@@ -30,9 +33,9 @@ const buildTextCondition = (column, op, filter) => {
   }
 };
 
-// Values-checklist membership, shared by all three column types: selected exact
-// values IN (...), optionally OR'd with `column = ''` when the "ריק" (empty) box
-// is checked. This is the operator the frontend's column-menu checklist uses.
+// Values-checklist membership, shared by all column types: selected exact
+// values IN (...), optionally OR'd with `column = ''` when the "ריק" (empty)
+// box is checked. This is the operator the frontend's column-menu checklist uses.
 const buildInCondition = (column, filter) => {
   const values = Array.isArray(filter.values)
     ? filter.values.filter((v) => v !== "" && v != null)
@@ -52,8 +55,8 @@ const buildInCondition = (column, filter) => {
   return { sql: parts.length > 1 ? `(${parts.join(" OR ")})` : parts[0], params };
 };
 
-// from_year / until_year / year_limit / doors are stored as VARCHAR but hold numbers.
-// The REGEXP guard excludes empty/non-numeric values instead of silently casting them to 0.
+// For VARCHAR columns that hold numbers (e.g. years, door counts). The REGEXP
+// guard excludes empty/non-numeric values instead of silently casting them to 0.
 const buildNumericCondition = (column, op, filter) => {
   if (op === "in") return buildInCondition(column, filter);
 
@@ -87,12 +90,13 @@ const buildNumericCondition = (column, op, filter) => {
   }
 };
 
-// manufacture_years holds a comma-separated list, e.g. "2018,2019,2020".
-// Membership test mirrors the FIND_IN_SET-style pattern already used in carController.js.
-const buildCsvYearsCondition = (column, op, filter) => {
+// For VARCHAR columns holding a comma-separated list (e.g. noam.manufacture_years:
+// "2018,2019,2020"). Membership test via the FIND_IN_SET-style pattern already
+// used elsewhere in this codebase (see carController.js).
+const buildCsvListCondition = (column, op, filter) => {
   const membership = `CONCAT(',', ${column}, ',') LIKE CONCAT('%,', ?, ',%')`;
   switch (op) {
-    case "contains_year":
+    case "contains_value":
       return filter.value ? { sql: membership, params: [filter.value] } : null;
     case "in": {
       const values = Array.isArray(filter.values) ? filter.values.filter(Boolean) : [];
@@ -109,17 +113,18 @@ const buildCsvYearsCondition = (column, op, filter) => {
   }
 };
 
-// Builds a parameterized WHERE clause from a { colKey: {op, value|values} } filter map.
-// Unknown column keys and unknown/invalid operators are silently dropped rather than
-// trusted - the frontend can never smuggle arbitrary SQL through this path.
-const buildNoamWhere = (filters) => {
+// Builds a parameterized WHERE clause from a { colKey: {op, value|values} } filter
+// map, resolved through the given columnsConfig whitelist. Unknown column keys and
+// unknown/invalid operators are silently dropped rather than trusted - the
+// frontend can never smuggle arbitrary SQL through this path.
+const buildWhere = (columnsConfig, filters) => {
   if (!filters || typeof filters !== "object") return { whereSql: "", params: [] };
 
   const clauses = [];
   const params = [];
 
   for (const [key, filter] of Object.entries(filters)) {
-    const config = NOAM_COLUMNS_CONFIG[key];
+    const config = columnsConfig[key];
     if (!config || !filter || !filter.op) continue;
 
     let condition = null;
@@ -127,8 +132,8 @@ const buildNoamWhere = (filters) => {
       condition = buildTextCondition(config.column, filter.op, filter);
     } else if (config.type === "numeric_text") {
       condition = buildNumericCondition(config.column, filter.op, filter);
-    } else if (config.type === "csv_years") {
-      condition = buildCsvYearsCondition(config.column, filter.op, filter);
+    } else if (config.type === "csv_list") {
+      condition = buildCsvListCondition(config.column, filter.op, filter);
     }
 
     if (condition) {
@@ -145,12 +150,12 @@ const buildNoamWhere = (filters) => {
 
 // Builds a validated ORDER BY fragment - column and direction are both resolved
 // through the whitelist, never taken as raw input.
-const buildNoamOrderBy = (sort) => {
+const buildOrderBy = (columnsConfig, sort) => {
   if (!sort || !sort.column) return "";
-  const config = NOAM_COLUMNS_CONFIG[sort.column];
+  const config = columnsConfig[sort.column];
   if (!config) return "";
   const dir = String(sort.dir).toLowerCase() === "desc" ? "DESC" : "ASC";
   return `ORDER BY ${config.column} ${dir}`;
 };
 
-module.exports = { buildNoamWhere, buildNoamOrderBy };
+module.exports = { buildWhere, buildOrderBy };
