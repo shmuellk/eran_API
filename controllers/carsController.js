@@ -5,6 +5,11 @@ const { buildWhere, buildOrderBy } = require("./sqlFilterBuilder");
 const buildCarsWhere = (filters) => buildWhere(CARS_COLUMNS_CONFIG, filters);
 const buildCarsOrderBy = (sort) => buildOrderBy(CARS_COLUMNS_CONFIG, sort);
 
+// CARS_BENZI_TEST is a test table with the exact same schema as the real
+// (5.1M-row, production) cars table - this admin feature targets the test
+// copy, not production, until told otherwise.
+const TABLE_NAME = "CARS_BENZI_TEST";
+
 const PAGE_SIZE = 500;
 const MAX_DISTINCT_VALUES = 500;
 
@@ -33,11 +38,11 @@ const getCarsList = async (req, res) => {
     logger.info("getCarsList called", { page, offset, limit: PAGE_SIZE, filters, sort });
 
     const [rows] = await pool.query(
-      `SELECT ${SELECT_COLUMNS.join(", ")} FROM cars ${whereSql} ${orderBySql} LIMIT ? OFFSET ?;`,
+      `SELECT ${SELECT_COLUMNS.join(", ")} FROM ${TABLE_NAME} ${whereSql} ${orderBySql} LIMIT ? OFFSET ?;`,
       [...params, PAGE_SIZE, offset]
     );
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) AS total FROM cars ${whereSql};`,
+      `SELECT COUNT(*) AS total FROM ${TABLE_NAME} ${whereSql};`,
       params
     );
 
@@ -81,7 +86,7 @@ const getDistinctValues = async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT DISTINCT ${config.column} AS value
-       FROM cars
+       FROM ${TABLE_NAME}
        ${whereSql}
        ${whereSql ? "AND" : "WHERE"} ${config.column} <> '' AND ${config.column} LIKE ?
        ORDER BY ${config.column}
@@ -122,7 +127,7 @@ const updateColumn = async (req, res) => {
     logger.info("updateColumn called", { column, value, filters, whereSql });
 
     const [result] = await pool.query(
-      `UPDATE cars SET ${config.column} = ? ${whereSql};`,
+      `UPDATE ${TABLE_NAME} SET ${config.column} = ? ${whereSql};`,
       [value, ...params]
     );
 
@@ -163,7 +168,7 @@ const saveChanges = async (req, res) => {
     let deletedCount = 0;
     if (deleteIds.length > 0) {
       const [result] = await connection.query(
-        `DELETE FROM cars WHERE id IN (${deleteIds.map(() => "?").join(",")});`,
+        `DELETE FROM ${TABLE_NAME} WHERE id IN (${deleteIds.map(() => "?").join(",")});`,
         deleteIds
       );
       deletedCount = result.affectedRows;
@@ -186,7 +191,7 @@ const saveChanges = async (req, res) => {
       const params = [...changeEntries.map(([, value]) => value ?? ""), id];
 
       const [result] = await connection.query(
-        `UPDATE cars SET ${setSql} WHERE id = ?;`,
+        `UPDATE ${TABLE_NAME} SET ${setSql} WHERE id = ?;`,
         params
       );
       updatedCount += result.affectedRows;
@@ -202,7 +207,7 @@ const saveChanges = async (req, res) => {
       const params = ROW_EDITABLE_COLUMNS.map((key) => row[key] ?? "");
 
       const [result] = await connection.query(
-        `INSERT INTO cars (${columnSql}) VALUES (${placeholders});`,
+        `INSERT INTO ${TABLE_NAME} (${columnSql}) VALUES (${placeholders});`,
         params
       );
       insertedRows.push({ tempId: row._tempId, id: result.insertId });
@@ -242,7 +247,7 @@ const deleteRow = async (req, res) => {
       return res.status(400).json({ status: "error", message: "Invalid id" });
     }
 
-    const [result] = await pool.query("DELETE FROM cars WHERE id = ?;", [id]);
+    const [result] = await pool.query(`DELETE FROM ${TABLE_NAME} WHERE id = ?;`, [id]);
     logger.info("deleteRow result", { id, affectedRows: result.affectedRows });
 
     res.status(200).json({ status: "success", affectedRows: result.affectedRows });
