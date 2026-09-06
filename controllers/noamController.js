@@ -1,6 +1,6 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
-const { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS } = require("./noamColumns");
+const { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS, ROW_EDITABLE_COLUMNS } = require("./noamColumns");
 const { buildNoamWhere, buildNoamOrderBy } = require("./noamQuery");
 
 const PAGE_SIZE = 500;
@@ -167,8 +167,80 @@ const updateColumn = async (req, res) => {
   }
 };
 
+// Persists the "שמירה" (save) action: every edited cell and every newly-added row
+// that were, until now, only sitting in the browser's local state. Runs as a single
+// transaction so a partial failure never leaves some rows saved and others not.
+//
+// updates: [{ id, changes: { colKey: value, ... } }]  - existing rows, changed columns only
+// inserts: [{ _tempId, ...colKey: value }]             - brand new rows, not yet in the DB
+const saveChanges = async (req, res) => {
+  const { updates = [], inserts = [] } = req.body || {};
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    let updatedCount = 0;
+    for (const update of updates) {
+      const id = parseInt(update?.id, 10);
+      if (!Number.isFinite(id)) continue;
+
+      const changeEntries = Object.entries(update.changes || {}).filter(
+        ([key]) => ROW_EDITABLE_COLUMNS.includes(key)
+      );
+      if (changeEntries.length === 0) continue;
+
+      const setSql = changeEntries
+        .map(([key]) => `${NOAM_COLUMNS_CONFIG[key].column} = ?`)
+        .join(", ");
+      const params = [...changeEntries.map(([, value]) => value ?? ""), id];
+
+      const [result] = await connection.query(
+        `UPDATE noam SET ${setSql} WHERE id = ?;`,
+        params
+      );
+      updatedCount += result.affectedRows;
+    }
+
+    const insertedRows = [];
+    for (const row of inserts) {
+      const hasContent = ROW_EDITABLE_COLUMNS.some((key) => (row[key] ?? "") !== "");
+      if (!hasContent) continue; // skip a row the user added but never filled in
+
+      const columnSql = ROW_EDITABLE_COLUMNS.map((key) => NOAM_COLUMNS_CONFIG[key].column).join(", ");
+      const placeholders = ROW_EDITABLE_COLUMNS.map(() => "?").join(", ");
+      const params = ROW_EDITABLE_COLUMNS.map((key) => row[key] ?? "");
+
+      const [result] = await connection.query(
+        `INSERT INTO noam (${columnSql}) VALUES (${placeholders});`,
+        params
+      );
+      insertedRows.push({ tempId: row._tempId, id: result.insertId });
+    }
+
+    await connection.commit();
+    logger.info("saveChanges result", { updatedCount, insertedCount: insertedRows.length });
+
+    res.status(200).json({
+      status: "success",
+      updatedCount,
+      insertedRows,
+    });
+  } catch (err) {
+    await connection.rollback();
+    logger.error("saveChanges Database error", { error: err });
+    res.status(500).json({
+      status: "error",
+      message: "Error saving changes",
+    });
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = {
   getNoamList,
   getDistinctValues,
   updateColumn,
+  saveChanges,
 };

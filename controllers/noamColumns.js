@@ -34,4 +34,11 @@ const NOAM_COLUMNS_CONFIG = {
 
 const SELECT_COLUMNS = Object.keys(NOAM_COLUMNS_CONFIG);
 
-module.exports = { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS };
+// Columns a single row's own edit/insert may set - everything except the
+// server-generated id. This is deliberately broader than `writable` above:
+// `writable` gates the mass "update whole column" action (where catalog_number
+// is excluded, since it never makes sense to bulk-set), but a single row's own
+// catalog_number IS a normal, expected field to fill in when adding/editing that row.
+const ROW_EDITABLE_COLUMNS = SELECT_COLUMNS.filter((key) => key !== "id");
+
+module.exports = { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS, ROW_EDITABLE_COLUMNS };
