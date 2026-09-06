@@ -167,23 +167,39 @@ const updateColumn = async (req, res) => {
   }
 };
 
-// Persists the "שמירה" (save) action: every edited cell and every newly-added row
-// that were, until now, only sitting in the browser's local state. Runs as a single
-// transaction so a partial failure never leaves some rows saved and others not.
+// Persists the "שמירה" (save) action: every edited cell, every newly-added row,
+// and every row marked for deletion, all of which sat only in the browser's local
+// state until now. Runs as a single transaction so a partial failure never leaves
+// some rows saved/deleted and others not.
 //
 // updates: [{ id, changes: { colKey: value, ... } }]  - existing rows, changed columns only
 // inserts: [{ _tempId, ...colKey: value }]             - brand new rows, not yet in the DB
+// deletes: [id, id, ...]                               - existing rows to remove
 const saveChanges = async (req, res) => {
-  const { updates = [], inserts = [] } = req.body || {};
+  const { updates = [], inserts = [], deletes = [] } = req.body || {};
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
+    const deleteIds = deletes
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isFinite(id));
+
+    let deletedCount = 0;
+    if (deleteIds.length > 0) {
+      const [result] = await connection.query(
+        `DELETE FROM noam WHERE id IN (${deleteIds.map(() => "?").join(",")});`,
+        deleteIds
+      );
+      deletedCount = result.affectedRows;
+    }
+    const deleteIdSet = new Set(deleteIds);
+
     let updatedCount = 0;
     for (const update of updates) {
       const id = parseInt(update?.id, 10);
-      if (!Number.isFinite(id)) continue;
+      if (!Number.isFinite(id) || deleteIdSet.has(id)) continue; // a deleted row is never also updated
 
       const changeEntries = Object.entries(update.changes || {}).filter(
         ([key]) => ROW_EDITABLE_COLUMNS.includes(key)
@@ -219,12 +235,17 @@ const saveChanges = async (req, res) => {
     }
 
     await connection.commit();
-    logger.info("saveChanges result", { updatedCount, insertedCount: insertedRows.length });
+    logger.info("saveChanges result", {
+      updatedCount,
+      insertedCount: insertedRows.length,
+      deletedCount,
+    });
 
     res.status(200).json({
       status: "success",
       updatedCount,
       insertedRows,
+      deletedCount,
     });
   } catch (err) {
     await connection.rollback();
