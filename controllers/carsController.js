@@ -28,9 +28,12 @@ const getCarsList = async (req, res) => {
     const page = Math.max(parseInt(req.query.PAGE, 10) || 1, 1);
     const offset = (page - 1) * PAGE_SIZE;
     const filters = parseFilters(req.query.FILTERS);
+    // Default is id DESC (newest rows first) at the query level itself, not
+    // merely something the frontend happens to request - so this holds true
+    // for any caller, not just the current frontend's default state.
     const sort = req.query.SORT_COLUMN
       ? { column: req.query.SORT_COLUMN, dir: req.query.SORT_DIR }
-      : null;
+      : { column: "id", dir: "desc" };
 
     const { whereSql, params } = buildCarsWhere(filters);
     const orderBySql = buildCarsOrderBy(sort);
