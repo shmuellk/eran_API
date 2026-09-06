@@ -11,7 +11,7 @@ const armorRouts = require("./routers/armorRouts");
 const cronRouter = require("./routers/cronRouter");
 const barRouter = require("./routers/barRouts");
 const noamRouter = require("./routers/noamRouts");
-const { debugCarsSchema } = require("./controllers/_debugCarsSchema");
+const carsTableRouter = require("./routers/carsTableRouts");
 
 const app = express();
 app.use(cors());
@@ -30,6 +30,6 @@ app.use("/armor", armorRouts);
 app.use("/cron", cronRouter);
 app.use("/bar", barRouter);
 app.use("/noam", noamRouter);
-app.get("/_debugCarsSchema", debugCarsSchema);
+app.use("/carsTable", carsTableRouter);
 
 module.exports = app;
