@@ -4,6 +4,7 @@ const { CARS_COLUMNS_CONFIG, SELECT_COLUMNS, ROW_EDITABLE_COLUMNS } = require(".
 const { buildWhere, buildOrderBy } = require("./sqlFilterBuilder");
 const buildCarsWhere = (filters) => buildWhere(CARS_COLUMNS_CONFIG, filters);
 const buildCarsOrderBy = (sort) => buildOrderBy(CARS_COLUMNS_CONFIG, sort);
+const { streamCsvExport, parseExportColumns } = require("./csvExport");
 
 // CARS_BENZI_TEST is a test table with the exact same schema as the real
 // (5.1M-row, production) cars table - this admin feature targets the test
@@ -65,6 +66,43 @@ const getCarsList = async (req, res) => {
       status: "error",
       message: "Error fetching cars list",
     });
+  }
+};
+
+// "ייצוא לפי סינון" - streams EVERY row matching the current filters/sort as CSV,
+// not just the pages loaded in the browser (capped by csvExport's MAX_EXPORT_ROWS).
+const exportCsv = (req, res) => {
+  try {
+    const columns = parseExportColumns(req.query.COLUMNS, CARS_COLUMNS_CONFIG);
+    if (columns.length === 0) {
+      return res.status(400).json({ status: "error", message: "Invalid columns" });
+    }
+    const filters = parseFilters(req.query.FILTERS);
+    const sort = req.query.SORT_COLUMN
+      ? { column: req.query.SORT_COLUMN, dir: req.query.SORT_DIR }
+      : { column: "id", dir: "desc" };
+    const { whereSql, params } = buildCarsWhere(filters);
+    const orderBySql = buildCarsOrderBy(sort);
+
+    logger.info("cars exportCsv called", { filters, sort });
+
+    streamCsvExport({
+      req,
+      res,
+      pool,
+      table: TABLE_NAME,
+      columnsConfig: CARS_COLUMNS_CONFIG,
+      columns,
+      whereSql,
+      orderBySql,
+      params,
+      fileName: "טבלת_רכבים_לפי_סינון.csv",
+    });
+  } catch (err) {
+    logger.error("cars exportCsv error", { error: err });
+    if (!res.headersSent) {
+      res.status(500).json({ status: "error", message: "Error exporting cars" });
+    }
   }
 };
 
@@ -265,6 +303,7 @@ const deleteRow = async (req, res) => {
 
 module.exports = {
   getCarsList,
+  exportCsv,
   getDistinctValues,
   updateColumn,
   saveChanges,

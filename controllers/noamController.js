@@ -4,6 +4,7 @@ const { NOAM_COLUMNS_CONFIG, SELECT_COLUMNS, ROW_EDITABLE_COLUMNS } = require(".
 const { buildWhere, buildOrderBy } = require("./sqlFilterBuilder");
 const buildNoamWhere = (filters) => buildWhere(NOAM_COLUMNS_CONFIG, filters);
 const buildNoamOrderBy = (sort) => buildOrderBy(NOAM_COLUMNS_CONFIG, sort);
+const { streamCsvExport, parseExportColumns } = require("./csvExport");
 
 const PAGE_SIZE = 500;
 const MAX_DISTINCT_VALUES = 500;
@@ -60,6 +61,43 @@ const getNoamList = async (req, res) => {
       status: "error",
       message: "Error fetching noam list",
     });
+  }
+};
+
+// "ייצוא לפי סינון" - streams EVERY row matching the current filters/sort as CSV,
+// not just the pages loaded in the browser.
+const exportCsv = (req, res) => {
+  try {
+    const columns = parseExportColumns(req.query.COLUMNS, NOAM_COLUMNS_CONFIG);
+    if (columns.length === 0) {
+      return res.status(400).json({ status: "error", message: "Invalid columns" });
+    }
+    const filters = parseFilters(req.query.FILTERS);
+    const sort = req.query.SORT_COLUMN
+      ? { column: req.query.SORT_COLUMN, dir: req.query.SORT_DIR }
+      : { column: "id", dir: "desc" };
+    const { whereSql, params } = buildNoamWhere(filters);
+    const orderBySql = buildNoamOrderBy(sort);
+
+    logger.info("noam exportCsv called", { filters, sort });
+
+    streamCsvExport({
+      req,
+      res,
+      pool,
+      table: "noam",
+      columnsConfig: NOAM_COLUMNS_CONFIG,
+      columns,
+      whereSql,
+      orderBySql,
+      params,
+      fileName: "טבלת_נועם_לפי_סינון.csv",
+    });
+  } catch (err) {
+    logger.error("noam exportCsv error", { error: err });
+    if (!res.headersSent) {
+      res.status(500).json({ status: "error", message: "Error exporting noam" });
+    }
   }
 };
 
@@ -288,6 +326,7 @@ const deleteRow = async (req, res) => {
 
 module.exports = {
   getNoamList,
+  exportCsv,
   getDistinctValues,
   updateColumn,
   saveChanges,

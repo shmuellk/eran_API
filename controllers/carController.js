@@ -50,7 +50,7 @@ const getCarDataByNumber = async (req, res) => {
 const getProdactsByCar = async (req, res) => {
   try {
     const { U_TYPE } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
     console.log("[DEBUG] getProdactsByCar U_TYPE:", JSON.stringify(U_TYPE), "rowLimit:", rowLimit);
     const {
       MANUFACTURER,
@@ -300,6 +300,7 @@ const getProdactsById = async (req, res) => {
           cards.brand,
           cards.sku_code,
           cards.delivery_date,
+          cards.ITEM_DESCRIPTION,
           ROW_NUMBER() OVER (
             PARTITION BY noam.CATALOG_NUMBER
             ORDER BY cards.quantity DESC
@@ -317,7 +318,7 @@ const getProdactsById = async (req, res) => {
       STEP2 AS (
         SELECT *,
           ROW_NUMBER() OVER (
-            PARTITION BY CHILD_GROUP, DESCRIPTION_NOTE
+            PARTITION BY ITEM_DESCRIPTION, CHILD_GROUP, DESCRIPTION_NOTE
             ORDER BY quantity DESC
           ) rn_group
         FROM STEP1
@@ -357,7 +358,7 @@ const getProdactsByPARENT_GROUP = async (req, res) => {
       PARENT_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
     console.log("[DEBUG] getProdactsByPARENT_GROUP U_TYPE:", JSON.stringify(U_TYPE), "rowLimit:", rowLimit);
     logger.info("getProdactsByPARENT_GROUP called", {
       MANUFACTURER,
@@ -508,7 +509,7 @@ const getProdactsByITEM_GROUP = async (req, res) => {
       ITEM_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
     logger.info("getProdactsByITEM_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -661,7 +662,7 @@ const getProdactsByCHILD_GROUP = async (req, res) => {
       CHILD_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
     logger.info("getProdactsByCHILD_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -893,7 +894,7 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
       CHILD_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 50 : 20;
+    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
     logger.info("getProdactsByCHILD_GROUPSerch called", {
       MANUFACTURER,
       MODEL,
