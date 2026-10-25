@@ -128,6 +128,19 @@ const addItemToCart = async (req, res) => {
       amountToBy,
       status,
     });
+
+    // אין להוסיף לעגלה פריט במלאי אפס או שלילי (UPDATE/מחיקה מהעגלה עדיין מותרים)
+    if (status === "ADD") {
+      const [stock] = await pool.query(
+        "SELECT MAX(CAST(quantity AS SIGNED)) AS q FROM cards WHERE catalog_number = ?;",
+        [item_code]
+      );
+      if (stock[0] && stock[0].q !== null && Number(stock[0].q) <= 0) {
+        logger.warn("addItemToCart blocked - out of stock", { item_code, quantity: stock[0].q });
+        return res.status(409).json({ status: "error", message: "הפריט חסר במלאי" });
+      }
+    }
+
     // שימוש בפרמטרים (parameterized query) למניעת SQL Injection
     const query = `CALL SP_BENZI_APP_CART(?, ?, ?, ?, ?);`;
     const [results] = await pool.query(query, [
