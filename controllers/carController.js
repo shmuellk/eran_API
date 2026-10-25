@@ -1,5 +1,6 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
+const { isAdminType } = require("./userTypes");
 
 const getCarDataByNumber = async (req, res) => {
   try {
@@ -50,7 +51,7 @@ const getCarDataByNumber = async (req, res) => {
 const getProdactsByCar = async (req, res) => {
   try {
     const { U_TYPE } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
+    const rowLimit = isAdminType(U_TYPE) ? 100 : 20;
     console.log("[DEBUG] getProdactsByCar U_TYPE:", JSON.stringify(U_TYPE), "rowLimit:", rowLimit);
     const {
       MANUFACTURER,
@@ -358,7 +359,7 @@ const getProdactsByPARENT_GROUP = async (req, res) => {
       PARENT_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
+    const rowLimit = isAdminType(U_TYPE) ? 100 : 20;
     console.log("[DEBUG] getProdactsByPARENT_GROUP U_TYPE:", JSON.stringify(U_TYPE), "rowLimit:", rowLimit);
     logger.info("getProdactsByPARENT_GROUP called", {
       MANUFACTURER,
@@ -509,7 +510,7 @@ const getProdactsByITEM_GROUP = async (req, res) => {
       ITEM_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
+    const rowLimit = isAdminType(U_TYPE) ? 100 : 20;
     logger.info("getProdactsByITEM_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -662,7 +663,7 @@ const getProdactsByCHILD_GROUP = async (req, res) => {
       CHILD_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
+    const rowLimit = isAdminType(U_TYPE) ? 100 : 20;
     logger.info("getProdactsByCHILD_GROUP called", {
       MANUFACTURER,
       MODEL,
@@ -894,7 +895,7 @@ const getProdactsByCHILD_GROUPSerch = async (req, res) => {
       CHILD_GROUP,
       U_TYPE,
     } = req.query;
-    const rowLimit = U_TYPE === 'מנהל' ? 100 : 20;
+    const rowLimit = isAdminType(U_TYPE) ? 100 : 20;
     logger.info("getProdactsByCHILD_GROUPSerch called", {
       MANUFACTURER,
       MODEL,

@@ -1,6 +1,7 @@
 const pool = require("../configs/connection_cars");
 const nodemailer = require("nodemailer");
 const logger = require("../logger.js");
+const { isAdminType, ADMIN_TYPES_SQL } = require("./userTypes");
 require("dotenv").config();
 
 const logIn = async (req, res) => {
@@ -29,7 +30,7 @@ const logIn = async (req, res) => {
 
     if (results.length > 0) {
       const user = results[0];
-      if (source !== "record_dev" || user.U_TYPE === 'מנהל') {
+      if (source !== "record_dev" || isAdminType(user.U_TYPE)) {
         // WEB_MANAG or admin — ללא בדיקת IP
       } else {
       const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
@@ -360,8 +361,8 @@ const getAllAppUsers = async (req, res) => {
     );
 
     const counterWhere = createBy
-      ? "WHERE U_TYPE <> 'מנהל' AND U_CREATE_BY = ?"
-      : "WHERE U_TYPE <> 'מנהל'";
+      ? `WHERE U_TYPE NOT IN (${ADMIN_TYPES_SQL}) AND U_CREATE_BY = ?`
+      : `WHERE U_TYPE NOT IN (${ADMIN_TYPES_SQL})`;
     const counterParams = createBy ? [createBy] : [];
     const [[{ counter }]] = await pool.query(
       `SELECT COUNT(DISTINCT U_CARD_CODE) AS counter FROM BENZI_APP_USERS ${counterWhere}`,
@@ -396,7 +397,7 @@ const CountAppUsers = async (req, res) => {
     const [[{ counter }]] = await pool.query(
       `SELECT COUNT(DISTINCT U_CARD_CODE) AS counter
         FROM BENZI_APP_USERS 
-        WHERE U_TYPE <> 'מנהל' AND U_CREATE_BY =?;`,
+        WHERE U_TYPE NOT IN (${ADMIN_TYPES_SQL}) AND U_CREATE_BY =?;`,
       [U_CREATE_BY]
     );
 
