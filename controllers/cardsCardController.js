@@ -20,6 +20,7 @@ const LOCKED_COLUMNS = new Set([
   "brand", // מותג
   "gross_price", // מחיר ברוטו
   "net_price", // מחיר נטו
+  "garage9_price", // מחיר מוסך 9
   "quantity", // מלאי במחסן כללי
 ]);
 
@@ -40,6 +41,26 @@ const loadSchema = async () => {
 const isEditable = (name, schema) =>
   !LOCKED_COLUMNS.has(name.toLowerCase()) && !schema.primaryKey.includes(name);
 
+// child_group_search holds the site search words (comma separated) per child_group
+// (תת קבוצה). The popup shows/edits them as "חפש באתר" - shared by every item in
+// that sub-group, not stored on the card itself.
+const childGroupOf = (row) => {
+  const key = Object.keys(row).find((k) => k.toLowerCase() === "child_group");
+  return key ? row[key] : undefined;
+};
+
+const loadSiteSearch = async (childGroups) => {
+  const groups = [...new Set(childGroups.filter((g) => g !== undefined && g !== null && g !== ""))];
+  if (groups.length === 0) return {};
+  const [rows] = await pool.query(
+    "SELECT child_group, site_search FROM child_group_search WHERE child_group IN (?);",
+    [groups]
+  );
+  const map = {};
+  for (const r of rows) if (!(r.child_group in map)) map[r.child_group] = r.site_search ?? "";
+  return map;
+};
+
 const getCardsByCatalog = async (req, res) => {
   try {
     const { CATALOG_NUMBER } = req.query;
@@ -51,8 +72,11 @@ const getCardsByCatalog = async (req, res) => {
 
     const [rows] = await pool.query("SELECT * FROM cards WHERE catalog_number = ?;", [CATALOG_NUMBER]);
 
+    const siteSearch = await loadSiteSearch(rows.map(childGroupOf));
+
     res.status(200).json({
       status: "success",
+      siteSearch, // { child_group: site_search }
       columns: schema.columns.map((c) => ({ ...c, editable: isEditable(c.name, schema) })),
       primaryKey: schema.primaryKey,
       result: rows,
@@ -64,11 +88,11 @@ const getCardsByCatalog = async (req, res) => {
 };
 
 // body: { catalogNumber, key: { pkCol: value } (only when cards has a primary key),
-//         changes: { column: value } }
+//         changes: { column: value }, siteSearch?: { childGroup, value } }
 // Updates exactly one row - if the WHERE would hit more (e.g. no primary key and
 // several cards share the catalog number), the transaction is rolled back.
 const updateCard = async (req, res) => {
-  const { catalogNumber, key = {}, changes = {} } = req.body || {};
+  const { catalogNumber, key = {}, changes = {}, siteSearch } = req.body || {};
   if (!catalogNumber) {
     return res.status(400).json({ status: "error", message: "Missing catalogNumber" });
   }
@@ -85,7 +109,10 @@ const updateCard = async (req, res) => {
     if (rejected.length > 0) {
       return res.status(400).json({ status: "error", message: `שדות לא ניתנים לעריכה: ${rejected.join(", ")}` });
     }
-    if (changeEntries.length === 0) {
+    if (siteSearch && !siteSearch.childGroup) {
+      return res.status(400).json({ status: "error", message: "לפריט אין תת קבוצה - לא ניתן לעדכן חפש באתר" });
+    }
+    if (changeEntries.length === 0 && !siteSearch) {
       return res.status(400).json({ status: "error", message: "No changes" });
     }
 
@@ -103,14 +130,20 @@ const updateCard = async (req, res) => {
     // Empty stays "" (not NULL) - same convention as the external sync, and safe for NOT NULL columns
     const setParams = changeEntries.map(([, value]) => value ?? "");
 
-    logger.info("updateCard called", { catalogNumber, key, changes });
+    logger.info("updateCard called", { catalogNumber, key, changes, siteSearch });
 
     connection = await pool.getConnection();
     await connection.beginTransaction();
-    const [result] = await connection.query(
-      `UPDATE cards SET ${setSql} WHERE ${whereParts.join(" AND ")};`,
-      [...setParams, ...whereParams]
-    );
+    // With only a site-search change the card row is just checked to exist
+    const [result] =
+      changeEntries.length > 0
+        ? await connection.query(`UPDATE cards SET ${setSql} WHERE ${whereParts.join(" AND ")};`, [
+            ...setParams,
+            ...whereParams,
+          ])
+        : await connection
+            .query(`SELECT COUNT(*) AS n FROM cards WHERE ${whereParts.join(" AND ")};`, whereParams)
+            .then(([rows]) => [{ affectedRows: Number(rows[0].n) }]);
     if (result.affectedRows !== 1) {
       await connection.rollback();
       logger.warn("updateCard rolled back - unexpected row count", { affectedRows: result.affectedRows });
@@ -121,6 +154,20 @@ const updateCard = async (req, res) => {
             ? "הפריט לא נמצא"
             : "נמצאו כמה כרטיסים עם אותו קוד פריט - העדכון בוטל",
       });
+    }
+
+    if (siteSearch) {
+      const value = siteSearch.value ?? "";
+      const [upd] = await connection.query(
+        "UPDATE child_group_search SET site_search = ? WHERE child_group = ?;",
+        [value, siteSearch.childGroup]
+      );
+      if (upd.affectedRows === 0) {
+        await connection.query("INSERT INTO child_group_search (child_group, site_search) VALUES (?, ?);", [
+          siteSearch.childGroup,
+          value,
+        ]);
+      }
     }
     await connection.commit();
 
