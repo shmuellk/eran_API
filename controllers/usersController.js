@@ -253,6 +253,7 @@ const creatNewUser = async (req, res) => {
   const U_IP6 = toNullIfEmpty(req.body.U_IP6);
   const SITE = req.body.SITE ? 1 : 0;
   const APP = req.body.APP ? 1 : 0;
+  const GIUL = req.body.GIUL ? 1 : 0;
 
   console.log("U_CARD_CODE = " + U_CARD_CODE);
   console.log("U_CARD_NAME = " + U_CARD_NAME);
@@ -270,8 +271,8 @@ const creatNewUser = async (req, res) => {
     // Using parameterized query to prevent SQL injection
     const query = `
   INSERT INTO BENZI_APP_USERS
-    (U_CARD_CODE, U_CARD_NAME, U_VIEW_NAME, U_SHIPTYPE, U_TYPE, U_USER_NAME, U_PASSWORD, U_EILAT_USER, U_CREATE_BY, U_IP, U_IP6, SITE, APP)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (U_CARD_CODE, U_CARD_NAME, U_VIEW_NAME, U_SHIPTYPE, U_TYPE, U_USER_NAME, U_PASSWORD, U_EILAT_USER, U_CREATE_BY, U_IP, U_IP6, SITE, APP, GIUL)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
     const [results] = await pool.query(query, [
       U_CARD_CODE,
@@ -287,6 +288,7 @@ const creatNewUser = async (req, res) => {
       U_IP6,
       SITE,
       APP,
+      GIUL,
     ]);
     logger.info("creatNewUser result", { result: results });
 
@@ -464,6 +466,7 @@ const updateUser = async (req, res) => {
   const U_IP6 = req.body.U_IP6 ?? "";
   const SITE = req.body.SITE ? 1 : 0;
   const APP = req.body.APP ? 1 : 0;
+  const GIUL = req.body.GIUL ? 1 : 0;
 
   console.log("[updateUser] U_CARD_CODE =", U_CARD_CODE);
   console.log("[updateUser] U_CARD_NAME =", U_CARD_NAME);
@@ -490,7 +493,8 @@ const updateUser = async (req, res) => {
     U_IP = ?,
     U_IP6 = ?,
     SITE = ?,
-    APP = ?
+    APP = ?,
+    GIUL = ?
   WHERE U_CARD_CODE = ? AND U_USER_NAME = ?
 `;
 
@@ -506,6 +510,7 @@ const updateUser = async (req, res) => {
       U_IP6,
       SITE,
       APP,
+      GIUL,
       U_CARD_CODE,
       U_USER_NAME_ORIGINAL,
     ]);

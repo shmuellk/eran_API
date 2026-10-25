@@ -12,6 +12,7 @@ const cronRouter = require("./routers/cronRouter");
 const barRouter = require("./routers/barRouts");
 const noamRouter = require("./routers/noamRouts");
 const carsTableRouter = require("./routers/carsTableRouts");
+const childGroupSearchRouter = require("./routers/childGroupSearchRouts");
 
 const app = express();
 app.use(cors());
@@ -31,5 +32,6 @@ app.use("/cron", cronRouter);
 app.use("/bar", barRouter);
 app.use("/noam", noamRouter);
 app.use("/carsTable", carsTableRouter);
+app.use("/childGroupSearch", childGroupSearchRouter);
 
 module.exports = app;

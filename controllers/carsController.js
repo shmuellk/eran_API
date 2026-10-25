@@ -6,10 +6,10 @@ const buildCarsWhere = (filters) => buildWhere(CARS_COLUMNS_CONFIG, filters);
 const buildCarsOrderBy = (sort) => buildOrderBy(CARS_COLUMNS_CONFIG, sort);
 const { streamCsvExport, parseExportColumns } = require("./csvExport");
 
-// CARS_BENZI_TEST is a test table with the exact same schema as the real
-// (5.1M-row, production) cars table - this admin feature targets the test
-// copy, not production, until told otherwise.
-const TABLE_NAME = "CARS_BENZI_TEST";
+// The real (5.1M-row, production) cars table - the same one the storefront's
+// car lookup reads (carController.js). CARS_BENZI_TEST is a test copy with the
+// exact same schema, if this ever needs to point back at it.
+const TABLE_NAME = "cars";
 
 const PAGE_SIZE = 500;
 const MAX_DISTINCT_VALUES = 500;
