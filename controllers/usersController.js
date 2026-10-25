@@ -253,7 +253,7 @@ const creatNewUser = async (req, res) => {
   const U_IP6 = toNullIfEmpty(req.body.U_IP6);
   const SITE = req.body.SITE ? 1 : 0;
   const APP = req.body.APP ? 1 : 0;
-  const GIUL = req.body.GIUL ? 1 : 0;
+  const GIUL = req.body.GIUL === undefined ? 1 : req.body.GIUL ? 1 : 0; // shown by default
 
   console.log("U_CARD_CODE = " + U_CARD_CODE);
   console.log("U_CARD_NAME = " + U_CARD_NAME);
