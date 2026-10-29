@@ -481,7 +481,10 @@ const updateUser = async (req, res) => {
   console.log("[updateUser] U_IP =", U_IP);
   console.log("[updateUser] U_IP6 =", U_IP6);
 
+  let connection;
   try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
     // Using parameterized query to prevent SQL injection
     const query = `
   UPDATE BENZI_APP_USERS SET
@@ -500,7 +503,7 @@ const updateUser = async (req, res) => {
   WHERE U_CARD_CODE = ? AND U_USER_NAME = ?
 `;
 
-    const [results] = await pool.query(query, [
+    const [results] = await connection.query(query, [
       U_CARD_NAME,
       U_VIEW_NAME,
       U_SHIPTYPE,
@@ -520,23 +523,30 @@ const updateUser = async (req, res) => {
     logger.info("updateUser result", { affectedRows: results.affectedRows, changedRows: results.changedRows });
 
     if (results.affectedRows === 0) {
+      await connection.rollback();
       return res.status(404).json({
         status: "error",
         message: `לא נמצא משתמש עם קוד ${U_CARD_CODE} ושם משתמש ${U_USER_NAME_ORIGINAL}`,
       });
     }
 
-    await pool.query('UPDATE AUTH_SESSIONS SET revoked = 1 WHERE user_name = ? AND card_code = ?', [U_USER_NAME_ORIGINAL, U_CARD_CODE]);
+    // Sessions stay alive across edits: a renamed user keeps their session under the new name.
+    // A password change is caught by the credential fingerprint on the user's next request.
+    await connection.query('UPDATE AUTH_SESSIONS SET user_name = ? WHERE user_name = ? AND card_code = ? AND revoked = 0', [U_USER_NAME, U_USER_NAME_ORIGINAL, String(U_CARD_CODE)]);
+    await connection.commit();
     res.status(200).json({
       status: "success",
       result: results,
     });
   } catch (err) {
+    await connection?.rollback().catch(() => {});
     logger.error("updateUser Database error", { code: err.code });
     res.status(500).json({
       status: "error",
       message: "Error creatNewUser fetching data",
     });
+  } finally {
+    connection?.release();
   }
 };
 

@@ -33,14 +33,23 @@ for (const [name, options] of [
   ['idle expiry', { sessionPatch: { last_activity: Date.now() - 31 * 60000 } }],
   ['absolute expiry', { sessionPatch: { expires_at: Date.now() - 1 } }],
   ['password changed', { userPatch: { U_PASSWORD: 'new' } }],
-  ['role changed', { userPatch: { U_TYPE: 'מנהל' } }],
-  ['network restrictions changed', { userPatch: { U_IP: '192.0.2.1' } }],
-  ['permissions changed', { userPatch: { SITE: 0 } }],
   ['user deleted', { missingUser: true }],
 ]) test(name + ' rejects authentication', async () => {
   const { api, req, res } = setup(options);
   await api.authenticate(req, res, () => assert.fail('must not authorize'));
   assert.equal(res.statusCode, 401);
+});
+for (const [name, userPatch] of [
+  ['role changed', { U_TYPE: 'מנהל' }],
+  ['network restrictions changed', { U_IP: '192.0.2.1' }],
+  ['permissions changed', { SITE: 0 }],
+  ['display details changed', { U_CARD_NAME: 'Alice Ltd' }],
+]) test(name + ' keeps the session and applies the current values', async () => {
+  const { api, req, res, calls } = setup({ userPatch }); let passed = false;
+  await api.authenticate(req, res, () => { passed = true; });
+  assert.equal(passed, true); assert.equal(res.statusCode, 200);
+  for (const [key, value] of Object.entries(userPatch)) assert.equal(req.auth.user[key], value);
+  assert.equal(calls.some(([sql]) => sql.includes('revoked = 1')), false);
 });
 test('malformed and legacy JWT tokens are rejected', async () => {
   for (const token of ['', 'Bearer old.jwt.token', 'Basic abc']) {

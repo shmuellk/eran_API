@@ -5,13 +5,12 @@ const positive = (value, fallback) => Number.isSafeInteger(Number(value)) && Num
 const idleMs = positive(process.env.SESSION_IDLE_MINUTES, 30) * 60000;
 const absoluteMs = positive(process.env.SESSION_MAX_HOURS, 12) * 3600000;
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+// Only a password change invalidates sessions. Other account fields (type, permissions, IP)
+// are re-read from the database on every request, so edits apply without signing the user out.
 function fingerprint(user) {
   const secret = process.env.SESSION_FINGERPRINT_SECRET;
   if (!secret || secret.length < 32) throw new Error('SESSION_FINGERPRINT_SECRET must contain at least 32 characters');
-  return crypto.createHmac('sha256', secret).update(JSON.stringify([
-    user.U_USER_NAME, user.U_CARD_CODE, user.U_PASSWORD, user.U_TYPE,
-    user.SITE, user.APP, user.GIUL, user.U_IP, user.U_IP6,
-  ])).digest('hex');
+  return crypto.createHmac('sha256', secret).update(JSON.stringify([user.U_PASSWORD])).digest('hex');
 }
 function publicUser(user) {
   const { U_PASSWORD, ...safe } = user;
