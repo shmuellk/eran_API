@@ -30,6 +30,13 @@ const checkVehicleNumberRequired = async (req, res) => {
 };
 
 const addOrder = async (req, res) => {
+  if (!Array.isArray(req.body.Orders) || !req.body.Orders.length) return res.status(400).json({ message: 'Orders required' });
+  if (!['מנהל', 'מנהל על'].includes(req.auth.user.U_TYPE)) {
+    for (const order of req.body.Orders) {
+      if (!order || typeof order !== 'object' || Array.isArray(order)) return res.status(400).json({ message: 'Invalid order' });
+      order.CardCode = String(req.auth.user.U_CARD_CODE);
+    }
+  }
   try {
     console.log("addOrder called", { body: JSON.stringify(req.body.Orders) });
 

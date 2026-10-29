@@ -1,16 +1,18 @@
+const crypto = require("node:crypto");
 const pool = require("../configs/connection_cars");
 const nodemailer = require("nodemailer");
 const logger = require("../logger.js");
 const { isAdminType, ADMIN_TYPES_SQL } = require("./userTypes");
 require("dotenv").config();
 
-const logIn = async (req, res) => {
-  const userName = req.query.userName;
-  const Password = req.query.Password;
-  const source = req.query.source || "";
+const { createSession, publicUser } = require("../security/sessions");
 
-  if (!userName || !Password) {
-    logger.warn("logIn missing required parameters", { userName, Password });
+const logIn = async (req, res) => {
+  const userName = req.body.userName;
+  const Password = req.body.Password;
+
+  if (typeof userName !== "string" || typeof Password !== "string" || !userName || !Password || userName.length > 255 || Password.length > 1024) {
+    logger.warn("logIn missing required parameters", { userName });
     return res.status(400).json({
       status: "error",
       message: "Missing required query parameters: userName or Password",
@@ -23,14 +25,20 @@ const logIn = async (req, res) => {
     const query = `
       SELECT *
       FROM BENZI_APP_USERS
-      WHERE U_USER_NAME = ? AND U_PASSWORD = ?;
+      WHERE U_USER_NAME = ?;
     `;
-    const [results] = await pool.query(query, [userName, Password]);
-    logger.info("logIn result", { result: results });
+    const [results] = await pool.query(query, [userName]);
+    // MySQL string comparison may be case-insensitive; verify credentials exactly.
+    const supplied = Buffer.from(Password);
+    const stored = Buffer.from(String(results[0]?.U_PASSWORD ?? ''));
+    if (results.length !== 1 || supplied.length !== stored.length || !crypto.timingSafeEqual(supplied, stored)) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
 
     if (results.length > 0) {
       const user = results[0];
-      if (source !== "record_dev" || isAdminType(user.U_TYPE)) {
+      if (isAdminType(user.U_TYPE)) {
         // WEB_MANAG or admin — ללא בדיקת IP
       } else {
       const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
@@ -38,13 +46,7 @@ const logIn = async (req, res) => {
         if (!ip || !ip.includes(':') || ip.startsWith('::ffff:')) return '';
         return ip.split(':').slice(0, 4).join(':').toLowerCase();
       };
-      const allIps = [
-        ...(req.headers["x-forwarded-for"] ?? "").split(",").map(s => s.trim()),
-        req.headers["x-real-ip"],
-        req.headers["cf-connecting-ip"],
-        req.ip,
-        req.socket?.remoteAddress,
-      ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
+      const allIps = [req.ip].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
 
       const clientIPv4 = allIps.find(isIPv4) ?? null;
       const clientIPv6Raw = allIps.find(ip => !isIPv4(ip) && ip.includes(':')) ?? null;
@@ -72,12 +74,12 @@ const logIn = async (req, res) => {
       }
     }
 
-    res.status(200).json({
-      status: "success",
-      result: results,
-    });
+    if (results.length !== 1) return res.status(401).json({ message: "Invalid credentials" });
+    const session = await createSession(results[0]);
+    res.set("Cache-Control", "no-store");
+    res.status(200).json({ status: "success", result: [publicUser(results[0])], ...session });
   } catch (err) {
-    logger.error("logIn Database error", { error: err });
+    logger.error("logIn failed", { code: err.code || "AUTH_ERROR" });
     res.status(500).json({
       status: "error",
       message: "Error logIn fetching data",
@@ -219,11 +221,11 @@ const getUserExistStatus = async (req, res) => {
     SELECT * FROM BENZI_APP_USERS WHERE U_CARD_CODE = ? AND U_USER_NAME = ?;
     `;
     const [results] = await pool.query(query, [U_CARD_CODE, U_USER_NAME]);
-    logger.info("getUserExistStatus result", { result: results });
+
 
     res.status(200).json({
       status: "success",
-      result: results,
+      result: results.map(publicUser),
     });
   } catch (err) {
     logger.error("getUserExistStatus Database error", { error: err });
@@ -262,7 +264,6 @@ const creatNewUser = async (req, res) => {
   console.log("U_SHIPTYPE = " + U_SHIPTYPE);
   console.log("U_TYPE = " + U_TYPE);
   console.log("U_USER_NAME = " + U_USER_NAME);
-  console.log("U_PASSWORD = " + U_PASSWORD);
   console.log("U_EILAT_USER = " + U_EILAT_USER);
   console.log("U_CREATE_BY = " + U_CREATE_BY);
   console.log("U_IP = " + U_IP);
@@ -298,7 +299,7 @@ const creatNewUser = async (req, res) => {
       result: results,
     });
   } catch (err) {
-    logger.error("creatNewUser Database error", { error: err });
+    logger.error("creatNewUser Database error", { code: err.code });
     res.status(500).json({
       status: "error",
       message: "Error creatNewUser fetching data",
@@ -438,14 +439,15 @@ const deleteUser = async (req, res) => {
       WHERE U_USER_NAME = ? AND U_CARD_CODE = ?;
     `;
     const [results] = await pool.query(query, [userName, cardCode]);
-    logger.info("logIn result", { result: results });
 
+
+    await pool.query('UPDATE AUTH_SESSIONS SET revoked = 1 WHERE user_name = ? AND card_code = ?', [userName, cardCode]);
     res.status(200).json({
       status: "success",
       result: results,
     });
   } catch (err) {
-    logger.error("logIn Database error", { error: err });
+    logger.error("logIn failed", { code: err.code || "AUTH_ERROR" });
     res.status(500).json({
       status: "error",
       message: "Error logIn fetching data",
@@ -473,7 +475,6 @@ const updateUser = async (req, res) => {
   console.log("[updateUser] U_CARD_NAME =", U_CARD_NAME);
   console.log("[updateUser] U_USER_NAME_ORIGINAL =", U_USER_NAME_ORIGINAL);
   console.log("[updateUser] U_USER_NAME (new) =", U_USER_NAME);
-  console.log("[updateUser] U_PASSWORD =", U_PASSWORD);
   console.log("[updateUser] U_SHIPTYPE =", U_SHIPTYPE);
   console.log("[updateUser] U_TYPE =", U_TYPE);
   console.log("[updateUser] U_EILAT_USER =", U_EILAT_USER);
@@ -525,12 +526,13 @@ const updateUser = async (req, res) => {
       });
     }
 
+    await pool.query('UPDATE AUTH_SESSIONS SET revoked = 1 WHERE user_name = ? AND card_code = ?', [U_USER_NAME_ORIGINAL, U_CARD_CODE]);
     res.status(200).json({
       status: "success",
       result: results,
     });
   } catch (err) {
-    logger.error("updateUser Database error", { error: err });
+    logger.error("updateUser Database error", { code: err.code });
     res.status(500).json({
       status: "error",
       message: "Error creatNewUser fetching data",

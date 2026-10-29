@@ -2,10 +2,21 @@ const express = require("express");
 const router = express.Router();
 const usersController = require("../controllers/usersController");
 
-router.get("/logIn", usersController.logIn);
-router.get("/getUserExistStatus", usersController.getUserExistStatus);
+const { authenticate, requireAdmin, requireSuperAdmin, logout, disconnectUser } = require('../security/sessions');
+const customerScope = require('../security/customerScope');
+router.post('/logIn', require('../security/loginLimit'), usersController.logIn);
+router.use(authenticate);
+router.get('/session', (req, res) => res.json({ user: req.auth.user }));
+router.post('/logout', logout);
+router.post('/disconnect', requireSuperAdmin, disconnectUser);
+router.use(customerScope);
+router.get('/getUserExistStatus', usersController.getUserExistStatus);
+router.post('/sendEmail', usersController.sendEmail);
 router.get("/getWhatsAppUsers", usersController.getWhatsAppUsers);
-router.post("/sendEmail", usersController.sendEmail);
+router.use(requireAdmin);
+router.use(['/creatNewUser', '/updateUser', '/deleteUser'], require('../security/accountPolicy'));
+
+
 router.post("/creatNewUser", usersController.creatNewUser);
 router.get("/getAllAppUsers", usersController.getAllAppUsers);
 router.get("/getAllAppAuthor", usersController.getAllAppAuthor);
