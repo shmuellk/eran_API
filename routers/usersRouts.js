@@ -31,7 +31,8 @@ router.get("/myIp", (req, res) => {
     req.headers["cf-connecting-ip"],
     req.ip,
   ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
-  res.json({ allIps, firstIPv4: allIps.find(isIPv4) ?? null });
+  // apiSees is the only value the login IP check uses; the raw headers are for diagnostics only.
+  res.json({ allIps, firstIPv4: allIps.find(isIPv4) ?? null, apiSees: require('../security/ipPolicy').normalizeClientIp(req.ip) });
 });
 
 module.exports = router;

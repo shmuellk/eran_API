@@ -6,6 +6,7 @@ const { isAdminType, ADMIN_TYPES_SQL } = require("./userTypes");
 require("dotenv").config();
 
 const { createSession, publicUser } = require("../security/sessions");
+const { checkLoginIp } = require("../security/ipPolicy");
 
 const logIn = async (req, res) => {
   const userName = req.body.userName;
@@ -32,49 +33,21 @@ const logIn = async (req, res) => {
     const supplied = Buffer.from(Password);
     const stored = Buffer.from(String(results[0]?.U_PASSWORD ?? ''));
     if (results.length !== 1 || supplied.length !== stored.length || !crypto.timingSafeEqual(supplied, stored)) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ status: 'error', code: 'INVALID_CREDENTIALS', message: 'Invalid credentials' });
     }
 
-
-    if (results.length > 0) {
-      const user = results[0];
-      if (isAdminType(user.U_TYPE)) {
-        // WEB_MANAG or admin — ללא בדיקת IP
-      } else {
-      const isIPv4 = (ip) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
-      const getIPv6Prefix64 = (ip) => {
-        if (!ip || !ip.includes(':') || ip.startsWith('::ffff:')) return '';
-        return ip.split(':').slice(0, 4).join(':').toLowerCase();
-      };
-      const allIps = [req.ip].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
-
-      const clientIPv4 = allIps.find(isIPv4) ?? null;
-      const clientIPv6Raw = allIps.find(ip => !isIPv4(ip) && ip.includes(':')) ?? null;
-      const clientIPv6Prefix = getIPv6Prefix64(clientIPv6Raw);
-
-      const allowedIp  = user.U_IP  == null ? null : user.U_IP.toString().trim();
-      const allowedIp6 = user.U_IP6 == null ? null : user.U_IP6.toString().trim().toLowerCase();
-
-      if (allowedIp === null && allowedIp6 === null) {
-        logger.warn("logIn blocked - no IP configured", { userName });
-        return res.status(403).json({ status: "blocked" });
-      }
-
-      const hasIPv4Restriction = allowedIp && allowedIp !== "";
-      const hasIPv6Restriction = allowedIp6 && allowedIp6 !== "";
-
-      if (hasIPv4Restriction || hasIPv6Restriction) {
-        const ipv4Match = hasIPv4Restriction && clientIPv4 === allowedIp;
-        const ipv6Match = hasIPv6Restriction && clientIPv6Prefix !== '' && clientIPv6Prefix === allowedIp6;
-        if (!ipv4Match && !ipv6Match) {
-          logger.warn("logIn blocked by IP", { userName, clientIPv4, clientIPv6Prefix, allowedIp, allowedIp6 });
-          return res.status(403).json({ status: "blocked" });
-        }
-      }
+    const user = results[0];
+    // Admins (WEB_MANAG) are not IP-restricted.
+    if (!isAdminType(user.U_TYPE)) {
+      const ipCheck = checkLoginIp(user, req.ip);
+      if (!ipCheck.allowed) {
+        logger.warn("logIn blocked by IP", { userName, code: ipCheck.code, client: ipCheck.client, allowedIp: ipCheck.allowedIp, allowedPrefix: ipCheck.allowedPrefix });
+        // The caller's own address is returned so an admin can register the address the API actually sees
+        // (it can differ from "what is my IP" sites behind VPN/WARP/iCloud Private Relay).
+        return res.status(403).json({ status: "blocked", code: ipCheck.code, clientIp: ipCheck.client?.ip ?? null, clientIpv6Prefix: ipCheck.client?.prefix64 ?? null });
       }
     }
 
-    if (results.length !== 1) return res.status(401).json({ message: "Invalid credentials" });
     const session = await createSession(results[0]);
     res.set("Cache-Control", "no-store");
     res.status(200).json({ status: "success", result: [publicUser(results[0])], ...session });
