@@ -16,5 +16,9 @@ module.exports = async function loginLimit(req, res, next) {
       }
     }
     next();
-  } catch { res.status(503).json({ message: 'Authentication temporarily unavailable' }); }
+  } catch (error) {
+    // Do not log SQL, parameters or the request body: those can contain credentials.
+    console.error('Login rate limiter unavailable:', error.code || 'DATABASE_ERROR');
+    res.status(503).json({ message: 'Authentication temporarily unavailable' });
+  }
 };
