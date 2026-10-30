@@ -4,6 +4,7 @@ const usersController = require("../controllers/usersController");
 
 const { authenticate, requireAdmin, requireSuperAdmin, logout, disconnectUser } = require('../security/sessions');
 const customerScope = require('../security/customerScope');
+const { normalizeClientIp, getClientIp } = require('../security/ipPolicy');
 router.post('/logIn', require('../security/loginLimit'), usersController.logIn);
 router.use(authenticate);
 router.get('/session', (req, res) => res.json({ user: req.auth.user }));
@@ -32,7 +33,7 @@ router.get("/myIp", (req, res) => {
     req.ip,
   ].filter(Boolean).map(ip => ip.replace(/^::ffff:/, ""));
   // apiSees is the only value the login IP check uses; the raw headers are for diagnostics only.
-  res.json({ allIps, firstIPv4: allIps.find(isIPv4) ?? null, apiSees: require('../security/ipPolicy').normalizeClientIp(req.ip) });
+  res.json({ allIps, firstIPv4: allIps.find(isIPv4) ?? null, apiSees: normalizeClientIp(getClientIp(req)) });
 });
 
 module.exports = router;

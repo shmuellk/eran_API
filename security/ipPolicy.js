@@ -1,6 +1,35 @@
 const net = require('node:net');
-// Customer login IP restrictions. The client address is Express's req.ip, which honours only
-// TRUSTED_PROXY_CIDRS (see app.js); raw forwarding headers are never trusted here.
+// Customer login IP restrictions.
+// api.recordltd.co.il is proxied by Cloudflare straight to this server (ports 80/443), so the TCP peer is
+// a Cloudflare edge address that changes per request. The real customer address is in CF-Connecting-IP,
+// which is trusted ONLY when the TCP peer itself is a Cloudflare address (https://www.cloudflare.com/ips/);
+// a client connecting directly cannot spoof it.
+const CLOUDFLARE_RANGES = [
+  '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18',
+  '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17',
+  '162.158.0.0/15', '104.16.0.0/13', '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+  '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32', '2405:8100::/32',
+  '2a06:98c0::/29', '2c0f:f248::/32',
+];
+const cloudflare = new net.BlockList();
+for (const range of CLOUDFLARE_RANGES) {
+  const [address, bits] = range.split('/');
+  cloudflare.addSubnet(address, Number(bits), net.isIPv6(address) ? 'ipv6' : 'ipv4');
+}
+function isCloudflare(raw) {
+  const peer = normalizeClientIp(raw);
+  return !!peer && cloudflare.check(peer.ip, peer.family === 6 ? 'ipv6' : 'ipv4');
+}
+
+// The customer's real address for this request.
+function getClientIp(req) {
+  if (isCloudflare(req.socket?.remoteAddress)) {
+    const forwarded = normalizeClientIp(req.headers['cf-connecting-ip']);
+    if (forwarded) return forwarded.ip;
+  }
+  // Not via Cloudflare: Express's req.ip (honours TRUSTED_PROXY_CIDRS only, see app.js).
+  return req.ip;
+}
 
 // Expand any IPv6 text form (compressed, leading zeros, embedded IPv4) to 8 numeric hextets.
 function ipv6Hextets(ip) {
@@ -59,4 +88,4 @@ function checkLoginIp(user, rawClientIp) {
   return allowed ? { allowed, client } : { allowed, code: 'IP_NOT_ALLOWED', client, allowedIp: allowedIp || null, allowedPrefix };
 }
 
-module.exports = { normalizeClientIp, normalizeAllowedPrefix64, checkLoginIp };
+module.exports = { normalizeClientIp, normalizeAllowedPrefix64, checkLoginIp, getClientIp };

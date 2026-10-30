@@ -6,7 +6,7 @@ const { isAdminType, ADMIN_TYPES_SQL } = require("./userTypes");
 require("dotenv").config();
 
 const { createSession, publicUser } = require("../security/sessions");
-const { checkLoginIp } = require("../security/ipPolicy");
+const { checkLoginIp, getClientIp } = require("../security/ipPolicy");
 
 const logIn = async (req, res) => {
   const userName = req.body.userName;
@@ -39,7 +39,7 @@ const logIn = async (req, res) => {
     const user = results[0];
     // Admins (WEB_MANAG) are not IP-restricted.
     if (!isAdminType(user.U_TYPE)) {
-      const ipCheck = checkLoginIp(user, req.ip);
+      const ipCheck = checkLoginIp(user, getClientIp(req));
       if (!ipCheck.allowed) {
         logger.warn("logIn blocked by IP", { userName, code: ipCheck.code, client: ipCheck.client, allowedIp: ipCheck.allowedIp, allowedPrefix: ipCheck.allowedPrefix });
         // The caller's own address is returned so an admin can register the address the API actually sees
