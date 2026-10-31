@@ -2,7 +2,7 @@ const crypto = require("node:crypto");
 const pool = require("../configs/connection_cars");
 const nodemailer = require("nodemailer");
 const logger = require("../logger.js");
-const { isAdminType, ADMIN_TYPES_SQL } = require("./userTypes");
+const { isIpExemptType, ADMIN_TYPES_SQL } = require("./userTypes");
 require("dotenv").config();
 
 const { createSession, publicUser } = require("../security/sessions");
@@ -37,8 +37,8 @@ const logIn = async (req, res) => {
     }
 
     const user = results[0];
-    // Admins (WEB_MANAG) are not IP-restricted.
-    if (!isAdminType(user.U_TYPE)) {
+    // Admins (WEB_MANAG) and staff (mosofon, cellular data) are not IP-restricted.
+    if (!isIpExemptType(user.U_TYPE)) {
       const ipCheck = checkLoginIp(user, getClientIp(req));
       if (!ipCheck.allowed) {
         logger.warn("logIn blocked by IP", { userName, code: ipCheck.code, client: ipCheck.client, allowedIp: ipCheck.allowedIp, allowedPrefix: ipCheck.allowedPrefix });

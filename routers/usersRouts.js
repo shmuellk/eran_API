@@ -10,6 +10,7 @@ router.use(authenticate);
 router.get('/session', (req, res) => res.json({ user: req.auth.user }));
 router.post('/logout', logout);
 router.post('/disconnect', requireSuperAdmin, disconnectUser);
+router.post('/importMosofonUsers', requireSuperAdmin, require('../controllers/mosofonImportController').importMosofonUsers);
 router.use(customerScope);
 router.get('/getUserExistStatus', usersController.getUserExistStatus);
 router.post('/sendEmail', usersController.sendEmail);
