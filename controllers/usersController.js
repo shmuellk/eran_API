@@ -2,7 +2,8 @@ const crypto = require("node:crypto");
 const pool = require("../configs/connection_cars");
 const nodemailer = require("nodemailer");
 const logger = require("../logger.js");
-const { isIpExemptType, ADMIN_TYPES_SQL } = require("./userTypes");
+const { isAdminType, STAFF_TYPE, ADMIN_TYPES_SQL } = require("./userTypes");
+const staff = require("./staffUsersController");
 require("dotenv").config();
 
 const { createSession, publicUser } = require("../security/sessions");
@@ -37,8 +38,8 @@ const logIn = async (req, res) => {
     }
 
     const user = results[0];
-    // Admins (WEB_MANAG) and staff (mosofon, cellular data) are not IP-restricted.
-    if (!isIpExemptType(user.U_TYPE)) {
+    // Admins (WEB_MANAG) are not IP-restricted.
+    if (!isAdminType(user.U_TYPE)) {
       const ipCheck = checkLoginIp(user, getClientIp(req));
       if (!ipCheck.allowed) {
         logger.warn("logIn blocked by IP", { userName, code: ipCheck.code, client: ipCheck.client, allowedIp: ipCheck.allowedIp, allowedPrefix: ipCheck.allowedPrefix });
@@ -216,6 +217,7 @@ const toNullIfEmpty = (val) => {
 };
 
 const creatNewUser = async (req, res) => {
+  if (req.body.U_TYPE === STAFF_TYPE) return staff.createStaff(req, res);
   const U_CARD_CODE = toNullIfEmpty(req.body.U_CARD_CODE);
   const U_CARD_NAME = toNullIfEmpty(req.body.U_CARD_NAME);
   const U_VIEW_NAME = toNullIfEmpty(req.body.U_VIEW_NAME);
@@ -285,9 +287,14 @@ const getAllAppAuthor = async (req, res) => {
 
   try {
     // שאילתת נתונים עם דפדוף
-    const [results] = await pool.query(
+    const [customerAuthors] = await pool.query(
       `SELECT DISTINCT U_CREATE_BY FROM BENZI_APP_USERS`
     );
+    const seen = new Set(customerAuthors.map((row) => row.U_CREATE_BY));
+    const results = [
+      ...customerAuthors,
+      ...(await staff.staffAuthors()).filter((row) => !seen.has(row.U_CREATE_BY)),
+    ];
 
     logger.info("getAllAppUsers result = " + results);
 
@@ -322,17 +329,24 @@ const getAllAppUsers = async (req, res) => {
       ? [`%${search}%`, `%${search}%`, createBy]
       : [`%${search}%`, `%${search}%`];
 
-    // שאילתת נתונים עם דפדוף
-    const [results] = await pool.query(
-      `SELECT * FROM BENZI_APP_USERS ${baseWhere} ORDER BY U_CREATE_TIME DESC LIMIT ? OFFSET ?`,
-      [...baseParams, limit, offset]
+    // Customers and staff (separate table) are shown as one list, newest first: take the
+    // newest offset+limit rows of each, merge, and cut out the requested page.
+    const needed = offset + limit;
+    const [customers] = await pool.query(
+      `SELECT * FROM BENZI_APP_USERS ${baseWhere} ORDER BY U_CREATE_TIME DESC LIMIT ?`,
+      [...baseParams, needed]
     );
+    const staffPart = await staff.findStaff({ search, createBy, max: needed });
+    const results = [...customers, ...staffPart.rows]
+      .sort((a, b) => new Date(b.U_CREATE_TIME) - new Date(a.U_CREATE_TIME))
+      .slice(offset, offset + limit);
 
     // שאילתת ספירה כללית
-    const [[{ total }]] = await pool.query(
+    const [[{ total: customerTotal }]] = await pool.query(
       `SELECT COUNT(*) as total FROM BENZI_APP_USERS ${baseWhere}`,
       baseParams
     );
+    const total = customerTotal + staffPart.total;
 
     const counterWhere = createBy
       ? `WHERE U_TYPE NOT IN (${ADMIN_TYPES_SQL}) AND U_CREATE_BY = ?`
@@ -389,6 +403,7 @@ const CountAppUsers = async (req, res) => {
 };
 
 const deleteUser = async (req, res) => {
+  if (req.query.staff === "1") return staff.deleteStaff(req, res);
   const cardCode = req.query.cardCode;
   const userName = req.query.userName;
 
@@ -429,6 +444,11 @@ const deleteUser = async (req, res) => {
 };
 
 const updateUser = async (req, res) => {
+  if (req.body.STAFF === true) return staff.updateStaff(req, res);
+  // Staff live in their own table; a customer/admin cannot be turned into one by an edit.
+  if (req.body.U_TYPE === STAFF_TYPE) {
+    return res.status(400).json({ status: "error", message: "לא ניתן להפוך לקוח לעובד. צור עובד חדש" });
+  }
   const U_CARD_CODE = req.body.U_CARD_CODE;
   const U_CARD_NAME = req.body.U_CARD_NAME;
   const U_VIEW_NAME = req.body.U_VIEW_NAME;

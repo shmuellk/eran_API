@@ -12,10 +12,11 @@ function setup({ userPatch = {}, sessionPatch = {}, missingUser = false, dbFails
     calls.push([sql, params]);
     if (dbFails) throw new Error('offline');
     if (sql.startsWith('SELECT * FROM AUTH_SESSIONS')) return [[session]];
+    if (sql.startsWith('SELECT * FROM BENZI_STAFF_USERS')) return [missingUser ? [] : [{ U_USER_NAME: 'alice', U_PASSWORD: 'secret', U_VIEW_NAME: 'Alice', ...userPatch }]];
     if (sql.startsWith('SELECT * FROM BENZI')) return [missingUser ? [] : [{ ...user, ...userPatch }]];
     return [{ affectedRows: 1 }];
   } };
-  const context = { module: { exports: {} }, require: name => name === 'node:crypto' ? crypto : name.includes('connection_cars') ? pool : { isAdminType: type => ['מנהל', 'מנהל על'].includes(type) }, process: { env: { SESSION_FINGERPRINT_SECRET: 'a'.repeat(32) } }, console: { error() {}, info() {} } };
+  const context = { module: { exports: {} }, require: name => name === 'node:crypto' ? crypto : name.includes('connection_cars') ? pool : require('../controllers/userTypes'), process: { env: { SESSION_FINGERPRINT_SECRET: 'a'.repeat(32) } }, console: { error() {}, info() {} } };
   vm.runInNewContext(fs.readFileSync(require.resolve('../security/sessions'), 'utf8'), context);
   api = context.module.exports;
   session.credential_fingerprint = api.fingerprint(user);
@@ -94,4 +95,26 @@ test('customer scope binds missing, forged and nested identifiers; admins retain
   scope(req, {}, () => {});
   assert.equal(req.query.CARDCODE, 'C1'); assert.equal(req.body.Orders[0].CardCode, 'C1'); assert.equal(req.body.Orders[0].userName, 'alice');
   req.auth.user.U_TYPE = 'מנהל'; req.query.CARDCODE = 'C2'; scope(req, {}, () => {}); assert.equal(req.query.CARDCODE, 'C2');
+});
+test('staff session loads the account from the staff table as type עובד', async () => {
+  const { api, req, res, calls } = setup({ sessionPatch: { account_kind: 'staff', card_code: '' } }); let passed = false;
+  await api.authenticate(req, res, () => { passed = true; });
+  assert.equal(passed, true); assert.equal(req.auth.user.U_TYPE, 'עובד'); assert.equal(req.auth.user.U_PASSWORD, undefined);
+  assert.ok(calls.some(([sql]) => sql.startsWith('SELECT * FROM BENZI_STAFF_USERS'))); assert.equal(calls.some(([sql]) => sql.includes('BENZI_APP_USERS')), false);
+});
+test('deleted staff account ends its session', async () => {
+  const { api, req, res } = setup({ sessionPatch: { account_kind: 'staff', card_code: '' }, missingUser: true });
+  await api.authenticate(req, res, () => assert.fail()); assert.equal(res.statusCode, 401);
+});
+test('staff sessions are created with an empty card code and the staff kind', async () => {
+  const { api, calls } = setup();
+  await api.createSession({ U_USER_NAME: 'noam', U_PASSWORD: 'noam' }, 'staff');
+  const params = calls.find(([sql]) => sql.includes('INSERT INTO AUTH_SESSIONS'))[1];
+  assert.equal(params[2], ''); assert.equal(params[6], 'staff');
+});
+test('staff accounts cannot pass customer scope', () => {
+  const scope = require('../security/customerScope');
+  const res = { status(code) { this.statusCode = code; return this; }, json() { return this; } };
+  scope({ auth: { user: { U_USER_NAME: 'noam', U_TYPE: 'עובד' } }, query: {}, body: {} }, res, () => assert.fail());
+  assert.equal(res.statusCode, 403);
 });

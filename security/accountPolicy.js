@@ -6,6 +6,8 @@ module.exports = async function accountPolicy(req, res, next) {
   const userName = req.body.U_USER_NAME_ORIGINAL || req.body.U_USER_NAME || req.query.userName;
   const cardCode = req.body.U_CARD_CODE || req.query.cardCode;
   if (req.path === '/creatNewUser') return next();
+  // Staff accounts (own table, no card code) can never be super administrators.
+  if (req.query.staff === '1' || req.body.STAFF === true) return next();
   if (typeof userName !== 'string' || !userName || cardCode == null) return res.status(400).json({ message: 'Account identity required' });
   try {
     const [users] = await pool.query('SELECT U_TYPE FROM BENZI_APP_USERS WHERE U_USER_NAME = ? AND U_CARD_CODE = ?', [userName, cardCode]);

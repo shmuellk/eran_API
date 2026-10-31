@@ -3,6 +3,8 @@
 function customerScope(req, res, next) {
   const user = req.auth.user;
   if (['מנהל', 'מנהל על'].includes(user.U_TYPE)) return next();
+  // Staff (mosofon) accounts have no customer of their own and never see customer data.
+  if (user.U_TYPE === 'עובד') return res.status(403).json({ message: 'Staff accounts cannot access customer data' });
   const cards = new Set(['cardcode', 'u_card_code']);
   const names = new Set(['username', 'u_user_name']);
   function bind(value, depth = 0) {

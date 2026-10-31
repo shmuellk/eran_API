@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const pool = require('../configs/connection_cars');
-const { isAdminType } = require('../controllers/userTypes');
+const { isAdminType, STAFF_TYPE } = require('../controllers/userTypes');
 const positive = (value, fallback) => Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
 const idleMs = positive(process.env.SESSION_IDLE_MINUTES, 30) * 60000;
 const absoluteMs = positive(process.env.SESSION_MAX_HOURS, 12) * 3600000;
@@ -16,13 +16,20 @@ function publicUser(user) {
   const { U_PASSWORD, ...safe } = user;
   return safe;
 }
-async function createSession(user) {
+// kind 'customer' = BENZI_APP_USERS (customers/admins), 'staff' = BENZI_STAFF_USERS (mosofon).
+async function createSession(user, kind = 'customer') {
   const token = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
+  const cardCode = kind === 'staff' ? '' : String(user.U_CARD_CODE);
   await pool.query(`INSERT INTO AUTH_SESSIONS
-    (token_hash, user_name, card_code, credential_fingerprint, last_activity, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?)`, [hash(token), user.U_USER_NAME, String(user.U_CARD_CODE), fingerprint(user), now, now + absoluteMs]);
+    (token_hash, user_name, card_code, credential_fingerprint, last_activity, expires_at, account_kind)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`, [hash(token), user.U_USER_NAME, cardCode, fingerprint(user), now, now + absoluteMs, kind]);
   return { token, idleTimeoutMs: idleMs, expiresAt: now + absoluteMs };
+}
+// Staff rows carry no U_TYPE column; the type is implied by the table.
+async function loadStaffUsers(userName) {
+  const [rows] = await pool.query('SELECT * FROM BENZI_STAFF_USERS WHERE U_USER_NAME = ?', [userName]);
+  return [rows.map(row => ({ ...row, U_TYPE: STAFF_TYPE }))];
 }
 const unauthorized = res => res.status(401).json({ status: 'error', code: 'SESSION_INVALID', message: 'Please sign in again' });
 async function authenticate(req, res, next) {
@@ -35,7 +42,9 @@ async function authenticate(req, res, next) {
     const session = sessions[0];
     const now = Date.now();
     if (!session || session.revoked || now >= Number(session.expires_at) || now - Number(session.last_activity) >= idleMs) return unauthorized(res);
-    const [users] = await pool.query('SELECT * FROM BENZI_APP_USERS WHERE U_USER_NAME = ? AND U_CARD_CODE = ?', [session.user_name, session.card_code]);
+    const [users] = session.account_kind === 'staff'
+      ? await loadStaffUsers(session.user_name)
+      : await pool.query('SELECT * FROM BENZI_APP_USERS WHERE U_USER_NAME = ? AND U_CARD_CODE = ?', [session.user_name, session.card_code]);
     if (users.length !== 1 || fingerprint(users[0]) !== session.credential_fingerprint) {
       await pool.query('UPDATE AUTH_SESSIONS SET revoked = 1 WHERE token_hash = ?', [tokenHash]);
       return unauthorized(res);
@@ -65,11 +74,15 @@ async function logout(req, res) {
     res.json({ status: 'success' });
   } catch { res.status(503).json({ message: 'Unable to revoke session' }); }
 }
+// Body { userName, cardCode } for a customer/admin, or { userName, staff: true } for staff.
 async function disconnectUser(req, res) {
-  const { userName, cardCode } = req.body;
-  if (typeof userName !== 'string' || !userName || typeof cardCode !== 'string' || !cardCode) return res.status(400).json({ message: 'userName and cardCode required' });
+  const { userName, cardCode, staff } = req.body;
+  if (typeof userName !== 'string' || !userName) return res.status(400).json({ message: 'userName required' });
+  if (staff !== true && (typeof cardCode !== 'string' || !cardCode)) return res.status(400).json({ message: 'userName and cardCode required' });
   try {
-    const [result] = await pool.query('UPDATE AUTH_SESSIONS SET revoked = 1 WHERE user_name = ? AND card_code = ? AND revoked = 0', [userName, cardCode]);
+    const [result] = staff === true
+      ? await pool.query("UPDATE AUTH_SESSIONS SET revoked = 1 WHERE user_name = ? AND account_kind = 'staff' AND revoked = 0", [userName])
+      : await pool.query("UPDATE AUTH_SESSIONS SET revoked = 1 WHERE user_name = ? AND card_code = ? AND account_kind = 'customer' AND revoked = 0", [userName, cardCode]);
     console.info('Sessions revoked by administrator', { actor: req.auth.user.U_USER_NAME, userName, cardCode });
     res.json({ status: 'success', revoked: result.affectedRows });
   } catch { res.status(503).json({ message: 'Unable to revoke sessions' }); }
