@@ -6,6 +6,7 @@ const { authenticate, requireAdmin, requireSuperAdmin, logout, disconnectUser } 
 const customerScope = require('../security/customerScope');
 const { normalizeClientIp, getClientIp } = require('../security/ipPolicy');
 router.post('/logIn', require('../security/loginLimit'), usersController.logIn);
+router.post('/appLogIn', require('../security/loginLimit'), usersController.appLogIn);
 router.post('/staffLogIn', require('../security/loginLimit'), require('../controllers/staffUsersController').staffLogIn);
 router.use(authenticate);
 router.get('/session', (req, res) => res.json({ user: req.auth.user }));

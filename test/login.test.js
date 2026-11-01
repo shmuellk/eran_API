@@ -70,3 +70,13 @@ test('staff login rejects a wrong password and an unknown name', async () => {
     assert.equal(res.statusCode, 401); assert.equal(sessions.length, 0);
   }
 });
+test('app login skips the customer IP rule that the website login applies', async () => {
+  const site = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null });
+  await site.api.logIn(site.req, site.res); assert.equal(site.res.statusCode, 403);
+  const app = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null });
+  await app.api.appLogIn(app.req, app.res); assert.equal(app.res.statusCode, 200); assert.equal(app.res.body.token, 'opaque-token');
+});
+test('app login still rejects a wrong password', async () => {
+  const { api, req, res } = setup('wrong', { U_TYPE: 'לקוח' });
+  await api.appLogIn(req, res); assert.equal(res.statusCode, 401);
+});

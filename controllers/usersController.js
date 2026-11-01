@@ -9,7 +9,10 @@ require("dotenv").config();
 const { createSession, publicUser } = require("../security/sessions");
 const { checkLoginIp, getClientIp } = require("../security/ipPolicy");
 
-const logIn = async (req, res) => {
+// Customer/admin login. The website (POST /users/logIn) applies the customer IP rule; the
+// RecordApp mobile app (POST /users/appLogIn) does not, because customers use it on cellular
+// networks whose address keeps changing (owner's decision, 2026-11-01).
+const performLogIn = async (req, res, { checkIp }) => {
   const userName = req.body.userName;
   const Password = req.body.Password;
 
@@ -39,7 +42,7 @@ const logIn = async (req, res) => {
 
     const user = results[0];
     // Admins (WEB_MANAG) are not IP-restricted.
-    if (!isAdminType(user.U_TYPE)) {
+    if (checkIp && !isAdminType(user.U_TYPE)) {
       const ipCheck = checkLoginIp(user, getClientIp(req));
       if (!ipCheck.allowed) {
         logger.warn("logIn blocked by IP", { userName, code: ipCheck.code, client: ipCheck.client, allowedIp: ipCheck.allowedIp, allowedPrefix: ipCheck.allowedPrefix });
@@ -60,6 +63,9 @@ const logIn = async (req, res) => {
     });
   }
 };
+
+const logIn = (req, res) => performLogIn(req, res, { checkIp: true });
+const appLogIn = (req, res) => performLogIn(req, res, { checkIp: false });
 
 const getWhatsAppUsers = async (req, res) => {
   logger.info("getWhatsAppUsers called");
@@ -545,6 +551,7 @@ const updateUser = async (req, res) => {
 
 module.exports = {
   logIn,
+  appLogIn,
   getWhatsAppUsers,
   sendEmail,
   getUserExistStatus,
