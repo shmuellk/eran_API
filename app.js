@@ -26,6 +26,8 @@ app.get("/", (req, res) => {
 const { authenticate, requireSuperAdmin } = require('./security/sessions');
 const customerScope = require('./security/customerScope');
 app.use('/users', usersRouts);
+// Nightly item sync pushed by My_SQL_Server: no user session, shared-secret header instead.
+app.post('/cron/updatePaginated', require('./security/cronSecret'), require('./controllers/cronController').updatePaginated);
 app.use(authenticate, customerScope);
 app.use(['/cron', '/noam', '/carsTable', '/childGroupSearch'], requireSuperAdmin);
 app.use('/cars', carRouter);

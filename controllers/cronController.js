@@ -1,10 +1,6 @@
 const pool = require("../configs/connection_cars");
 const logger = require("../logger.js");
 const axios = require("axios");
-const https = require("https");
-
-// agent המאפשר אישור SSL עצמי — לשימוש פנימי בלבד בין שרתים
-const internalHttpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 // פונקציה לעדכון נתונים (נקראת דרך API)
 const updatePaginated = async (req, res) => {
@@ -103,12 +99,14 @@ const updatePaginated = async (req, res) => {
   }
 };
 
+// GET /cron/triggerCron (super admin): starts My_SQL_Server's item sync now. The caller's
+// session is forwarded; My_SQL_Server validates it with this server like any other request.
 const triggerCron = async (req, res) => {
   try {
     logger.info("triggerCron called — sending to My_SQL_Server");
     const response = await axios.get(
-      "https://app.record.a-zuzit.co.il/cron/sendPaginatedUpdates",
-      { httpsAgent: internalHttpsAgent, timeout: 300000 }
+      "https://apps.a-zuzit.co.il/cron/sendPaginatedUpdates",
+      { headers: { Authorization: req.headers.authorization }, timeout: 300000, maxRedirects: 0 }
     );
     logger.info("triggerCron success", { data: response.data });
     res.status(200).json({ status: "ok", message: "הקרון הופעל בהצלחה", detail: response.data });
