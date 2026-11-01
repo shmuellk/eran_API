@@ -15,6 +15,7 @@ function setup(password = 'CorrectCase!', overrides = {}) {
     if (name === 'dotenv') return { config() {} };
     if (name.includes('userTypes')) return require('../controllers/userTypes');
     if (name.includes('ipPolicy')) return require('../security/ipPolicy');
+    if (name.includes('appClient')) return require('../security/appClient');
     if (name.includes('staffUsersController')) return {};
     if (name.includes('security/sessions')) return { createSession: async () => ({ token: 'opaque-token' }), publicUser: ({ U_PASSWORD, ...safe }) => safe };
     return {};
@@ -70,13 +71,30 @@ test('staff login rejects a wrong password and an unknown name', async () => {
     assert.equal(res.statusCode, 401); assert.equal(sessions.length, 0);
   }
 });
+const APP_HEADER = { 'x-record-app': 'rwxyiSAgQ-7I1tR6LQYlMjG4Q3YBrwyr' };
+const fromApp = ctx => { ctx.req.headers = { ...APP_HEADER }; return ctx; };
 test('app login skips the customer IP rule that the website login applies', async () => {
-  const site = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null });
+  const site = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null, APP: 1 });
   await site.api.logIn(site.req, site.res); assert.equal(site.res.statusCode, 403);
-  const app = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null });
+  const app = fromApp(setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null, APP: 1 }));
   await app.api.appLogIn(app.req, app.res); assert.equal(app.res.statusCode, 200); assert.equal(app.res.body.token, 'opaque-token');
 });
 test('app login still rejects a wrong password', async () => {
-  const { api, req, res } = setup('wrong', { U_TYPE: 'לקוח' });
-  await api.appLogIn(req, res); assert.equal(res.statusCode, 401);
+  const ctx = fromApp(setup('wrong', { U_TYPE: 'לקוח', APP: 1 }));
+  await ctx.api.appLogIn(ctx.req, ctx.res); assert.equal(ctx.res.statusCode, 401);
+});
+test('app login without the app header is refused before any database lookup', async () => {
+  for (const headers of [{}, { 'x-record-app': 'guess' }]) {
+    const ctx = setup('CorrectCase!', { U_TYPE: 'לקוח', APP: 1 }); ctx.req.headers = headers;
+    await ctx.api.appLogIn(ctx.req, ctx.res);
+    assert.equal(ctx.res.statusCode, 403); assert.equal(ctx.res.body.code, 'APP_ONLY'); assert.equal(ctx.queries.length, 0);
+  }
+});
+test('app login requires the APP flag for customers but not for admins', async () => {
+  for (const app of [0, '0', null]) {
+    const ctx = fromApp(setup('CorrectCase!', { U_TYPE: 'לקוח', APP: app }));
+    await ctx.api.appLogIn(ctx.req, ctx.res); assert.equal(ctx.res.statusCode, 403); assert.equal(ctx.res.body.code, 'APP_NOT_ALLOWED');
+  }
+  const admin = fromApp(setup('CorrectCase!', { U_TYPE: 'מנהל על', APP: 0 }));
+  await admin.api.appLogIn(admin.req, admin.res); assert.equal(admin.res.statusCode, 200);
 });

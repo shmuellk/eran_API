@@ -8,11 +8,18 @@ require("dotenv").config();
 
 const { createSession, publicUser } = require("../security/sessions");
 const { checkLoginIp, getClientIp } = require("../security/ipPolicy");
+const { isRecordApp } = require("../security/appClient");
 
 // Customer/admin login. The website (POST /users/logIn) applies the customer IP rule; the
 // RecordApp mobile app (POST /users/appLogIn) does not, because customers use it on cellular
-// networks whose address keeps changing (owner's decision, 2026-11-01).
+// networks whose address keeps changing (owner's decision, 2026-11-01). In exchange the app
+// login requires the app's X-Record-App header and, for customers, the "אפליקציה" flag (APP=1).
 const performLogIn = async (req, res, { checkIp }) => {
+  const appLogin = !checkIp;
+  if (appLogin && !isRecordApp(req)) {
+    logger.warn("appLogIn without the app header");
+    return res.status(403).json({ status: "blocked", code: "APP_ONLY", message: "Available from the mobile app only" });
+  }
   const userName = req.body.userName;
   const Password = req.body.Password;
 
@@ -41,6 +48,11 @@ const performLogIn = async (req, res, { checkIp }) => {
     }
 
     const user = results[0];
+    // App login: customers must be marked "אפליקציה" in MANAG. Admins may always use the app.
+    if (appLogin && !isAdminType(user.U_TYPE) && Number(user.APP) !== 1) {
+      logger.warn("appLogIn blocked: APP flag not set", { userName });
+      return res.status(403).json({ status: "blocked", code: "APP_NOT_ALLOWED", message: "Account is not enabled for the app" });
+    }
     // Admins (WEB_MANAG) are not IP-restricted.
     if (checkIp && !isAdminType(user.U_TYPE)) {
       const ipCheck = checkLoginIp(user, getClientIp(req));
