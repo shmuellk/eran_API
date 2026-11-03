@@ -5,6 +5,8 @@ const { buildWhere, buildOrderBy } = require("./sqlFilterBuilder");
 const buildNoamWhere = (filters) => buildWhere(NOAM_COLUMNS_CONFIG, filters);
 const buildNoamOrderBy = (sort) => buildOrderBy(NOAM_COLUMNS_CONFIG, sort);
 const { streamCsvExport, parseExportColumns } = require("./csvExport");
+const { manufactureYearsFor } = require("./manufactureYears");
+const YEAR_RANGE_KEYS = ["from_year", "until_year"];
 
 const PAGE_SIZE = 500;
 const MAX_DISTINCT_VALUES = 500;
@@ -190,10 +192,28 @@ const updateColumn = async (req, res) => {
 
     logger.info("updateColumn called", { column, value, filters, whereSql });
 
+    // The rows are picked BEFORE the update: the filter may be on the very column being
+    // changed, and afterwards the same WHERE would no longer find them.
+    let yearRows = [];
+    if (YEAR_RANGE_KEYS.includes(column)) {
+      [yearRows] = await pool.query(`SELECT id, from_year, until_year FROM noam ${whereSql};`, params);
+    }
+
     const [result] = await pool.query(
       `UPDATE noam SET ${config.column} = ? ${whereSql};`,
       [value, ...params]
     );
+
+    // "שנת ייצור" follows "משנה" / "עד שנה"
+    for (const row of yearRows) {
+      const years = manufactureYearsFor(
+        column === "from_year" ? value : row.from_year,
+        column === "until_year" ? value : row.until_year
+      );
+      if (years !== null) {
+        await pool.query("UPDATE noam SET manufacture_years = ? WHERE id = ?;", [years, row.id]);
+      }
+    }
 
     logger.info("updateColumn result", { affectedRows: result.affectedRows });
 
@@ -249,6 +269,25 @@ const saveChanges = async (req, res) => {
       );
       if (changeEntries.length === 0) continue;
 
+      // "שנת ייצור" follows "משנה" / "עד שנה": when either changed, recompute it from the
+      // row's resulting range (the other end comes from the DB if it wasn't edited).
+      if (changeEntries.some(([key]) => YEAR_RANGE_KEYS.includes(key))) {
+        const [[current] = []] = await connection.query(
+          "SELECT from_year, until_year FROM noam WHERE id = ?;",
+          [id]
+        );
+        const changes = Object.fromEntries(changeEntries);
+        const years = manufactureYearsFor(
+          "from_year" in changes ? changes.from_year : current?.from_year,
+          "until_year" in changes ? changes.until_year : current?.until_year
+        );
+        if (years !== null) {
+          const idx = changeEntries.findIndex(([key]) => key === "manufacture_years");
+          if (idx >= 0) changeEntries[idx] = ["manufacture_years", years];
+          else changeEntries.push(["manufacture_years", years]);
+        }
+      }
+
       const setSql = changeEntries
         .map(([key]) => `${NOAM_COLUMNS_CONFIG[key].column} = ?`)
         .join(", ");
@@ -268,7 +307,10 @@ const saveChanges = async (req, res) => {
 
       const columnSql = ROW_EDITABLE_COLUMNS.map((key) => NOAM_COLUMNS_CONFIG[key].column).join(", ");
       const placeholders = ROW_EDITABLE_COLUMNS.map(() => "?").join(", ");
-      const params = ROW_EDITABLE_COLUMNS.map((key) => row[key] ?? "");
+      const years = manufactureYearsFor(row.from_year, row.until_year);
+      const params = ROW_EDITABLE_COLUMNS.map((key) =>
+        key === "manufacture_years" && years !== null ? years : row[key] ?? ""
+      );
 
       const [result] = await connection.query(
         `INSERT INTO noam (${columnSql}) VALUES (${placeholders});`,
