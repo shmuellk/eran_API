@@ -39,7 +39,7 @@ test('login rejects non-string credentials without querying database', async () 
   await api.logIn(req, res); assert.equal(res.statusCode, 400); assert.equal(queries.length, 0);
 });
 test('customer without configured IP is still blocked', async () => {
-  const { api, req, res } = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null });
+  const { api, req, res } = setup('CorrectCase!', { U_TYPE: 'לקוח', SITE: 1, U_IP: null, U_IP6: null });
   await api.logIn(req, res); assert.equal(res.statusCode, 403); assert.equal(res.body.code, 'IP_NOT_CONFIGURED');
 });
 function staffSetup(rows) {
@@ -74,7 +74,7 @@ test('staff login rejects a wrong password and an unknown name', async () => {
 const APP_HEADER = { 'x-record-app': 'rwxyiSAgQ-7I1tR6LQYlMjG4Q3YBrwyr' };
 const fromApp = ctx => { ctx.req.headers = { ...APP_HEADER }; return ctx; };
 test('app login skips the customer IP rule that the website login applies', async () => {
-  const site = setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null, APP: 1 });
+  const site = setup('CorrectCase!', { U_TYPE: 'לקוח', SITE: 1, U_IP: null, U_IP6: null, APP: 1 });
   await site.api.logIn(site.req, site.res); assert.equal(site.res.statusCode, 403);
   const app = fromApp(setup('CorrectCase!', { U_TYPE: 'לקוח', U_IP: null, U_IP6: null, APP: 1 }));
   await app.api.appLogIn(app.req, app.res); assert.equal(app.res.statusCode, 200); assert.equal(app.res.body.token, 'opaque-token');
@@ -97,4 +97,36 @@ test('app login requires the APP flag for customers but not for admins', async (
   }
   const admin = fromApp(setup('CorrectCase!', { U_TYPE: 'מנהל על', APP: 0 }));
   await admin.api.appLogIn(admin.req, admin.res); assert.equal(admin.res.statusCode, 200);
+});
+test('website login requires the SITE flag for customers but not for admins', async () => {
+  for (const site of [0, '0', null, undefined]) {
+    const ctx = setup('CorrectCase!', { U_TYPE: 'לקוח', SITE: site, U_IP: '', U_IP6: '' });
+    await ctx.api.logIn(ctx.req, ctx.res); assert.equal(ctx.res.statusCode, 403); assert.equal(ctx.res.body.code, 'SITE_NOT_ALLOWED');
+  }
+  const customer = setup('CorrectCase!', { U_TYPE: 'לקוח', SITE: 1, U_IP: '', U_IP6: '' });
+  await customer.api.logIn(customer.req, customer.res); assert.equal(customer.res.statusCode, 200);
+  for (const type of ['מנהל', 'מנהל על']) {
+    const admin = setup('CorrectCase!', { U_TYPE: type, SITE: 0, U_IP: '', U_IP6: '' });
+    await admin.api.logIn(admin.req, admin.res); assert.equal(admin.res.statusCode, 200);
+  }
+});
+test('the app login ignores the SITE flag', async () => {
+  const ctx = fromApp(setup('CorrectCase!', { U_TYPE: 'לקוח', APP: 1, SITE: 0 }));
+  await ctx.api.appLogIn(ctx.req, ctx.res); assert.equal(ctx.res.statusCode, 200);
+});
+test('"מנהל" is IP-restricted like a customer; empty rule means unrestricted', async () => {
+  const blocked = setup('CorrectCase!', { U_TYPE: 'מנהל', U_IP: '198.51.100.7', U_IP6: '' });
+  await blocked.api.logIn(blocked.req, blocked.res); assert.equal(blocked.res.statusCode, 403); assert.equal(blocked.res.body.code, 'IP_NOT_ALLOWED');
+  const unconfigured = setup('CorrectCase!', { U_TYPE: 'מנהל', U_IP: null, U_IP6: null });
+  await unconfigured.api.logIn(unconfigured.req, unconfigured.res); assert.equal(unconfigured.res.body.code, 'IP_NOT_CONFIGURED');
+  const allowed = setup('CorrectCase!', { U_TYPE: 'מנהל', U_IP: '192.0.2.1', U_IP6: '' });
+  await allowed.api.logIn(allowed.req, allowed.res); assert.equal(allowed.res.statusCode, 200);
+  const open = setup('CorrectCase!', { U_TYPE: 'מנהל', U_IP: '', U_IP6: '' });
+  await open.api.logIn(open.req, open.res); assert.equal(open.res.statusCode, 200);
+});
+test('"מנהל על" is never IP-restricted', async () => {
+  for (const ip of [{ U_IP: '198.51.100.7', U_IP6: '' }, { U_IP: null, U_IP6: null }]) {
+    const ctx = setup('CorrectCase!', { U_TYPE: 'מנהל על', ...ip });
+    await ctx.api.logIn(ctx.req, ctx.res); assert.equal(ctx.res.statusCode, 200);
+  }
 });

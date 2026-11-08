@@ -1,8 +1,8 @@
 const crypto = require('node:crypto');
 const pool = require('../configs/connection_cars');
-const { isAdminType, STAFF_TYPE } = require('../controllers/userTypes');
+const { isAdminType, STAFF_TYPE, SUPER_ADMIN_TYPE } = require('../controllers/userTypes');
 const positive = (value, fallback) => Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
-const idleMs = positive(process.env.SESSION_IDLE_MINUTES, 30) * 60000;
+const idleMs = positive(process.env.SESSION_IDLE_MINUTES, 300) * 60000;
 const absoluteMs = positive(process.env.SESSION_MAX_HOURS, 12) * 3600000;
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 // Only a password change invalidates sessions. Other account fields (type, permissions, IP)
@@ -66,7 +66,7 @@ function requireAdmin(req, res, next) {
   return isAdminType(req.auth.user.U_TYPE) ? next() : res.status(403).json({ message: 'Administrator required' });
 }
 function requireSuperAdmin(req, res, next) {
-  return req.auth.user.U_TYPE === 'מנהל על' ? next() : res.status(403).json({ message: 'Super administrator required' });
+  return req.auth.user.U_TYPE === SUPER_ADMIN_TYPE ? next() : res.status(403).json({ message: 'Super administrator required' });
 }
 async function logout(req, res) {
   try {

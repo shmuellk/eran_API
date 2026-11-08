@@ -31,7 +31,7 @@ test('valid token loads current identity without credentials', async () => {
 });
 for (const [name, options] of [
   ['revoked session', { sessionPatch: { revoked: 1 } }],
-  ['idle expiry', { sessionPatch: { last_activity: Date.now() - 31 * 60000 } }],
+  ['idle expiry', { sessionPatch: { last_activity: Date.now() - 301 * 60000 } }],
   ['absolute expiry', { sessionPatch: { expires_at: Date.now() - 1 } }],
   ['password changed', { userPatch: { U_PASSWORD: 'new' } }],
   ['user deleted', { missingUser: true }],

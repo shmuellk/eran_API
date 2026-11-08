@@ -2,7 +2,7 @@ const crypto = require("node:crypto");
 const pool = require("../configs/connection_cars");
 const nodemailer = require("nodemailer");
 const logger = require("../logger.js");
-const { isAdminType, STAFF_TYPE, ADMIN_TYPES_SQL } = require("./userTypes");
+const { isAdminType, STAFF_TYPE, SUPER_ADMIN_TYPE, ADMIN_TYPES_SQL } = require("./userTypes");
 const staff = require("./staffUsersController");
 require("dotenv").config();
 
@@ -53,8 +53,14 @@ const performLogIn = async (req, res, { checkIp }) => {
       logger.warn("appLogIn blocked: APP flag not set", { userName });
       return res.status(403).json({ status: "blocked", code: "APP_NOT_ALLOWED", message: "Account is not enabled for the app" });
     }
-    // Admins (WEB_MANAG) are not IP-restricted.
-    if (checkIp && !isAdminType(user.U_TYPE)) {
+    // Website login: customers must be marked "אתר" in MANAG. Admins are exempt because WEB_MANAG
+    // signs in through the same endpoint.
+    if (checkIp && !isAdminType(user.U_TYPE) && Number(user.SITE) !== 1) {
+      logger.warn("logIn blocked: SITE flag not set", { userName });
+      return res.status(403).json({ status: "blocked", code: "SITE_NOT_ALLOWED", message: "Account is not enabled for the website" });
+    }
+    // Customers and "מנהל" are IP-restricted; "מנהל על" never is.
+    if (checkIp && user.U_TYPE !== SUPER_ADMIN_TYPE) {
       const ipCheck = checkLoginIp(user, getClientIp(req));
       if (!ipCheck.allowed) {
         logger.warn("logIn blocked by IP", { userName, code: ipCheck.code, client: ipCheck.client, allowedIp: ipCheck.allowedIp, allowedPrefix: ipCheck.allowedPrefix });
