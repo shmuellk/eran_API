@@ -230,6 +230,43 @@ const updateColumn = async (req, res) => {
   }
 };
 
+// The SAP cron (cronController) only UPDATEs existing cards rows, so an item first
+// created here would never get its data or show up on the site. When a new noam row's
+// catalog_number has no cards row yet, create a bare one: the catalog number and the
+// three category fields, everything else left for the cron to fill in. The other
+// columns are NOT NULL without defaults, so they get explicit empty values.
+const CARDS_EMPTY_COLUMNS = [
+  "status", "site_display", "item_description", "length", "size", "teeth",
+  "alternative_skus", "sku_code", "site_search", "image", "gross_price", "net_price",
+  "sku_invoice", "brand", "quantity", "garage9_price",
+];
+
+const ensureCardsRow = async (connection, row) => {
+  const catalogNumber = String(row.catalog_number ?? "").trim();
+  if (catalogNumber === "") return false;
+
+  const [existing] = await connection.query(
+    "SELECT 1 FROM cards WHERE catalog_number = ? LIMIT 1;",
+    [catalogNumber]
+  );
+  if (existing.length > 0) return false;
+
+  const columns = ["catalog_number", "parent_group", "item_group", "child_group", "show_random", ...CARDS_EMPTY_COLUMNS];
+  const params = [
+    catalogNumber,
+    row.parent_group ?? "",
+    row.item_group ?? "",
+    row.child_group ?? "",
+    0,
+    ...CARDS_EMPTY_COLUMNS.map(() => ""),
+  ];
+  await connection.query(
+    `INSERT INTO cards (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")});`,
+    params
+  );
+  return true;
+};
+
 // Persists the "שמירה" (save) action: every edited cell, every newly-added row,
 // and every row marked for deletion, all of which sat only in the browser's local
 // state until now. Runs as a single transaction so a partial failure never leaves
@@ -301,6 +338,7 @@ const saveChanges = async (req, res) => {
     }
 
     const insertedRows = [];
+    let createdCardsCount = 0;
     for (const row of inserts) {
       const hasContent = ROW_EDITABLE_COLUMNS.some((key) => (row[key] ?? "") !== "");
       if (!hasContent) continue; // skip a row the user added but never filled in
@@ -317,6 +355,7 @@ const saveChanges = async (req, res) => {
         params
       );
       insertedRows.push({ tempId: row._tempId, id: result.insertId });
+      if (await ensureCardsRow(connection, row)) createdCardsCount++;
     }
 
     await connection.commit();
@@ -324,6 +363,7 @@ const saveChanges = async (req, res) => {
       updatedCount,
       insertedCount: insertedRows.length,
       deletedCount,
+      createdCardsCount,
     });
 
     res.status(200).json({
