@@ -314,6 +314,10 @@ const getProdactsById = async (req, res) => {
           OR cards.alternative_skus LIKE CONCAT(?, ",%")
           OR cards.alternative_skus LIKE CONCAT("%,", ?)
           OR cards.alternative_skus = ?
+          OR (
+            (cards.alternative_skus IS NULL OR TRIM(cards.alternative_skus) = '')
+            AND cards.CATALOG_NUMBER = ?
+          )
         )
       ),
       STEP2 AS (
@@ -326,7 +330,7 @@ const getProdactsById = async (req, res) => {
         WHERE rn_cat = 1
       )
       SELECT * FROM STEP2 WHERE rn_group = 1;`,
-      [CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER]
+      [CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER, CATALOG_NUMBER]
     );
     logger.info("getProdactsById result", { result: results });
 
